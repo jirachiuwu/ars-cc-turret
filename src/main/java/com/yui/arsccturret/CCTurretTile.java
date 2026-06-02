@@ -28,7 +28,7 @@ public class CCTurretTile extends RotatingTurretTile {
     private double projectileSpeed = 1.5;            // blocks/tick(config.speed既定と一致)。NBT永続・Lua可変
     private boolean creative = false;                // NBT永続
     private static final double SPEED_MIN = 0.05, SPEED_MAX = 2.5;
-    private long lastFireTick = Long.MIN_VALUE;
+    private long lastFireTick = 0L;                  // 「未発射」。Long.MIN_VALUE だと初弾で now - lastFireTick が long桁あふれ→負値化し連射ガードが常時trueになり永久に撃てない。gameTimeは単調増加で必ず≥0なので0Lが正しい番兵。
     private static final long MIN_FIRE_INTERVAL = 1;
     private TurretPeripheral peripheral;
 
