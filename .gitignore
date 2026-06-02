@@ -1,0 +1,21 @@
+# gradle / forge
+.gradle/
+build/
+run/
+build_log.txt
+
+# 参照ソース(他者コード: Ars Nouveau / Adam's)。容量+ライセンスのためコミットしない
+refs/
+
+# ide
+.idea/
+*.iml
+.eclipse/
+.settings/
+.classpath
+.project
+bin/
+
+# os
+*.DS_Store
+Thumbs.db
