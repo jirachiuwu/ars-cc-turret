@@ -13,8 +13,11 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 
@@ -88,28 +91,45 @@ public class CCTurretTile extends RotatingTurretTile {
     public Map<Integer, Map<String, Object>> luaListEntities(double range) {
         Map<Integer, Map<String, Object>> out = new HashMap<>();
         Vec3 c = Vec3.atCenterOf(getBlockPos());
+        Vec3 muzzle = muzzleVec();                      // LoS の起点(砲口)
         int i = 1;
         for (Entity e : level.getEntities(null, new AABB(getBlockPos()).inflate(range))) {
             if (!(e instanceof LivingEntity)) continue;
             Vec3 dm = e.getDeltaMovement();
+            double h = e.getBbHeight();
+            Vec3 center = new Vec3(e.getX(), e.getY() + h * 0.5, e.getZ());   // 胴体中心
             Map<String, Object> m = new HashMap<>();
             m.put("uuid", e.getUUID().toString());
             m.put("type", ForgeRegistries.ENTITY_TYPES.getKey(e.getType()).toString());
             m.put("x", e.getX());  m.put("y", e.getY());  m.put("z", e.getZ());
             m.put("vx", dm.x);     m.put("vy", dm.y);     m.put("vz", dm.z);
+            m.put("height", h);                          // ★足元→胴体中心狙い用(Lua: y + height/2)
             m.put("distance", c.distanceTo(e.position()));
             m.put("isAlive", e.isAlive());
             m.put("isPlayer", e instanceof Player);
+            m.put("los", hasLos(muzzle, center));        // ★視線(砲口→中心にブロックが無いか)。壁越し/地下を撃たない
             out.put(i++, m);
         }
         return out;
     }
 
     public Map<String, Double> luaMuzzle() {
-        Position p = RotatingSpellTurret.getDispensePosition(new BlockSourceImpl((ServerLevel) level, getBlockPos()), this);
+        Vec3 p = muzzleVec();
         Map<String, Double> m = new HashMap<>();
-        m.put("x", p.x()); m.put("y", p.y()); m.put("z", p.z());
+        m.put("x", p.x); m.put("y", p.y); m.put("z", p.z);
         return m;
+    }
+
+    // 砲口位置(発射点 = ブロック中心 + 0.5·照準ベクトル)。luaMuzzle と LoS 起点で共用。
+    private Vec3 muzzleVec() {
+        Position p = RotatingSpellTurret.getDispensePosition(new BlockSourceImpl((ServerLevel) level, getBlockPos()), this);
+        return new Vec3(p.x(), p.y(), p.z());
+    }
+
+    // 砲口 from → 標的中心 to の間に遮蔽ブロックがあるか。MISS(到達) か、ヒットが自分のブロック(自己ヒット)なら視線あり。
+    private boolean hasLos(Vec3 from, Vec3 to) {
+        BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, null));
+        return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(getBlockPos());
     }
 
     public Map<String, Double> luaAimDir() {

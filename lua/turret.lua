@@ -20,8 +20,11 @@ while true do
     lock = nil                          -- 標的ロスト: 照準維持(再捕捉が速い)
   else
     lock = tgt.uuid
-    local Pp = { x = tgt.x, y = tgt.y, z = tgt.z }
-    local V  = { x = tgt.vx, y = tgt.vy, z = tgt.vz }
+    -- 足元(tgt.y)でなく胴体中心(y + 身長/2)を狙う。平行射撃が床を撃つのを防ぐ。
+    local Pp = { x = tgt.x, y = tgt.y + (tgt.height or 0) * 0.5, z = tgt.z }
+    -- vy の重力ノイズ(grounded ~-0.078)を無視。実飛行/落下(|vy|大)は残す。lead が床へ着弾点を引くのを防ぐ。
+    local vy = (math.abs(tgt.vy) < 0.1) and 0 or tgt.vy
+    local V  = { x = tgt.vx, y = vy, z = tgt.vz }
     local s  = P.getProjectileSpeed()   -- ★必ず Java クランプ後の真値を読む(config.speed 直読み禁止)
     local aimPt = (not ballistics.escapes(T, Pp, V, s)) and ballistics.lead(T, Pp, V, s, config.lead) or Pp
     if aimPt then                        -- 射程外/解なしで Pp にもならない時は撃たない
