@@ -1,0 +1,44 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="arsccturret"
+version="${file.jarVersion}"
+displayName="Ars CC Turret"
+authors="yui"
+description='''
+Ars Nouveau の呪文タレットを ComputerCraft から自動制御するアドオン。
+自動照準・偏差(lead)計算で対空射撃する対空CIWS。知能はLua(CC)側、Javaは器に徹する。
+'''
+
+[[dependencies.arsccturret]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.arsccturret]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.arsccturret]]
+    modId="ars_nouveau"
+    mandatory=true
+    versionRange="[4.12.7,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# cc-tweaked の modid は computercraft。versionRange は design.md §7.5 の [1.116.1,) だと
+# 実ビルド(cct_version=1.111.0)が範囲外で mandatory ロード拒否→起動拒否になるため [1.100,) に緩める。
+# 実機 runClient の /mods で同梱版を突合して最終確定する(§7.5 手順)。
+[[dependencies.arsccturret]]
+    modId="computercraft"
+    mandatory=true
+    versionRange="[1.100,)"
+    ordering="AFTER"
+    side="BOTH"

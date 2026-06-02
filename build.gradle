@@ -19,6 +19,10 @@ minecraft {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
+            // deobf依存(curios等)の mixin refmap を SRG→official に remap。
+            // 無いと curios.mixins.json の @Accessor が f_19803_ を解決できず dev でクラッシュする。
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -29,6 +33,8 @@ minecraft {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -47,6 +53,7 @@ repositories {
         url 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
         content { includeGroupByRegex 'software\\.bernie.*' }
     }
+    maven { url 'https://maven.theillusivec4.top/' }                           // Curios 公式
     maven { url 'https://modmaven.dev' }                                       // 退避路
 }
 
@@ -63,6 +70,14 @@ dependencies {
     compileOnly         "cc.tweaked:cc-tweaked-${mc_version}-core-api:${cct_version}"
     compileOnly fg.deobf("cc.tweaked:cc-tweaked-${mc_version}-forge-api:${cct_version}")
     runtimeOnly fg.deobf("cc.tweaked:cc-tweaked-${mc_version}-forge:${cct_version}")
+
+    // Ars Nouveau の実行時 mandatory 依存。compileJava には不要だが、runClient で Ars を実ロードすると
+    // Ars 自身が要求する。これが無いと起動時にロード拒否(curios)/mixinクラッシュ(MixinExtras)になる。
+    // - Curios: Ars が mandatory 依存(範囲 [1.19-5.0.7.1,))。MOD jar なので fg.deobf 要。
+    runtimeOnly fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}")
+    // - MixinExtras: Ars の mixin が要求。fg.deobf だと Ars jar 内の jarjar 版が展開されない為、明示追加。
+    //   ライブラリ(非MOD jar)なので fg.deobf 不要。後方互換ありで新しめを使う。
+    runtimeOnly "io.github.llamalad7:mixinextras-forge:${mixin_extras_version}"
 }
 
 jar {

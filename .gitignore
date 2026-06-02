@@ -3,6 +3,7 @@
 build/
 run/
 build_log.txt
+runclient_log.txt
 
 # 参照ソース(他者コード: Ars Nouveau / Adam's)。容量+ライセンスのためコミットしない
 refs/
