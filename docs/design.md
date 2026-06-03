@@ -827,3 +827,10 @@ ars-cc-turret/                      ← 土台 ars-no-iframes 複製
 **ヒット判定:** render 時に `{x1,x2,y,action}` の領域表を構築 → `onTouch(monName,x,y)` が突合（描画と判定が必ず一致）。`monitor_touch` イベントの監視名で**どのモニターか**を判定（MAINのタップは無視 or 将来用、CONFIG/単画面のタップで設定変更）。
 
 **検証(lupa):** clamp/step（境界・刻み）、座標→アクション、モニター解決(2/1/0枚→役割)、render 無エラー。見た目だけ目視。
+
+### 12.7 即時照準（CIWS 連続射撃の核）
+当初 `aimVec` は `neededRotationX/Y`(目標角)だけ書き、実回転は親 tick の `diff×0.1` 緩慢補間に任せていた(§6.3)。だが**動く標的では砲身が lead 点に追いつかず** `getShootAngle` がラグ→収束ゲート(`getAimError≤aimTolDeg`)が常に外れ「追従中ずっと撃てない／標的が止まってからしか撃たない」＝CIWS にならない。
+→ **`aimVec` で現在角 `rotationX/Y` を目標へ即時スナップ**（高速サーボ相当）。`getShootAngle` が即 lead 点を向き、追従しながら `fireCooldownTicks` 間隔で連続射撃できる。視覚的な砲身の滑らかな旋回は捨てる（CC 制御砲なので即応を優先）。検証=実機目視（連続射撃の有無）＋ compileJava。
+
+### 12.8 CONFIG モニターのスケール
+MAIN は情報密度優先で `setTextScale(0.5)`、CONFIG は設定が少なく大きい方が見やすい/画面を埋めるので `1.0`。領域表は `getSize()` から算出するのでスケール差はタップ判定に影響しない。

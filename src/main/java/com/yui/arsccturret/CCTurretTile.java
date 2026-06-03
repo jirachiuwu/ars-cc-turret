@@ -84,7 +84,12 @@ public class CCTurretTile extends RotatingTurretTile {
         float ay = (float) (angleBetween(diff, rotVec) * 180.0 / Math.PI);
         if (target.y < thisVec.y) ay = -ay;
         neededRotationY = ay;
-        setChanged();                                 // ★updateBlock()は呼ばない。tickの0.1f補間で実回転が追従
+        // ★即時照準(CIWS の高速サーボ相当): 現在角を目標へスナップ。
+        // 親の tick は diff×0.1 の緩慢補間で、動く標的だと砲身が lead 点に追いつかず getShootAngle がラグ→
+        // 収束ゲート(getAimError≤tol)が常に外れて「追従中ずっと撃てない」。即時化で追従しながら連続射撃できる。
+        rotationX = neededRotationX;
+        rotationY = neededRotationY;
+        setChanged();                                 // updateBlock()は呼ばない(§6.3)。getShootAngle は即 lead 点を向く
     }
 
     // --- Lua向け read(mainThread=true でメインスレ実行される前提) ---

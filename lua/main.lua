@@ -26,9 +26,10 @@ if cfg.creativeForce then P.setCreative(true) end
 -- モニター解決(2枚=MAIN+CONFIG / 1枚=タブ / 0枚=ヘッドレス)
 local mons = monitor.resolve(cfg)
 if mons.mode == "dual" then
-  monitor.setup(mons.main.obj); monitor.setup(mons.config.obj)
+  monitor.setup(mons.main.obj, 0.5)     -- MAIN は情報密度優先で小さめ
+  monitor.setup(mons.config.obj, 1.0)   -- CONFIG は設定が少ないので大きく(画面を埋める)
 elseif mons.mode == "single" then
-  monitor.setup(mons.single.obj)
+  monitor.setup(mons.single.obj, 0.5)
 end
 
 local state = turret.new(config.logSize)

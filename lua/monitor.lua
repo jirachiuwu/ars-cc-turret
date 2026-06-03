@@ -63,8 +63,8 @@ end
 
 -- ===== 描画 =====
 
-function M.setup(m)
-  m.setTextScale(0.5); m.setBackgroundColor(colors.black); m.clear()
+function M.setup(m, scale)
+  m.setTextScale(scale or 0.5); m.setBackgroundColor(colors.black); m.clear()
 end
 
 local function put(m, w, y, txt, fg, bg)
