@@ -37,8 +37,10 @@ public class CCTurretTile extends RotatingTurretTile {
     private long lastFireTick = 0L;                  // 「未発射」。Long.MIN_VALUE だと初弾で now - lastFireTick が long桁あふれ→負値化し連射ガードが常時trueになり永久に撃てない。gameTimeは単調増加で必ず≥0なので0Lが正しい番兵。
     private static final long MIN_FIRE_INTERVAL = 1;
     private TurretPeripheral peripheral;
-    // uuid -> {prevX,prevY,prevZ, prevGameTime, vx,vy,vz}。位置差分で速度を出す(プレイヤーの getDeltaMovement≈0 対策)
-    private final Map<java.util.UUID, double[]> velTrack = new HashMap<>();
+    // uuid -> 直近サンプルの履歴(各 {x,y,z,gameTime})。複数サンプルの最小二乗で速度を出す(単一差分のノイズを平滑・多角化)。
+    // プレイヤーの getDeltaMovement≈0 も位置差分なので回避。
+    private final Map<java.util.UUID, java.util.ArrayDeque<double[]>> velHist = new HashMap<>();
+    private static final int VEL_SAMPLES = 6;
 
     public CCTurretTile(BlockPos pos, BlockState state) {
         super(CCRegistry.CC_TURRET_TILE.get(), pos, state);
@@ -126,25 +128,33 @@ public class CCTurretTile extends RotatingTurretTile {
             m.put("los", hasLos(muzzle, center));        // ★視線(砲口→中心にブロックが無いか)。壁越し/地下を撃たない
             out.put(i++, m);
         }
-        velTrack.keySet().retainAll(seen);               // 範囲外/消えた標的の追跡を掃除
+        velHist.keySet().retainAll(seen);                // 範囲外/消えた標的の追跡を掃除
         return out;
     }
 
-    // 位置の前tick差分から速度を出す。getDeltaMovement はプレイヤーでサーバ側≈0 になり残像撃ちになるため信頼しない。
+    // 速度を複数サンプルの最小二乗(傾き)で出す。単一差分のノイズを平滑し、定常運動では厳密。
+    // getDeltaMovement に頼らない(プレイヤーでサーバ側≈0=残像撃ちの元)。
     private double[] trackVelocity(Entity e, long now) {
-        java.util.UUID id = e.getUUID();
-        double[] p = velTrack.get(id);
-        double vx, vy, vz;
-        if (p == null) {                                 // 初見: deltaMovement で暫定(次tickから位置差分)
-            Vec3 dm = e.getDeltaMovement(); vx = dm.x; vy = dm.y; vz = dm.z;
-        } else if (now > p[3]) {                         // 1tick以上経過: 位置差分=真の速度(プレイヤー含む)
-            double dt = now - p[3];
-            vx = (e.getX() - p[0]) / dt; vy = (e.getY() - p[1]) / dt; vz = (e.getZ() - p[2]) / dt;
-        } else {                                         // 同tickの再呼び: 直前の値を返す(更新しない)
-            return new double[]{p[4], p[5], p[6]};
+        java.util.ArrayDeque<double[]> hist = velHist.computeIfAbsent(e.getUUID(), k -> new java.util.ArrayDeque<>());
+        if (hist.isEmpty() || hist.peekLast()[3] < now) {          // 同tick重複は追加しない
+            hist.addLast(new double[]{e.getX(), e.getY(), e.getZ(), now});
+            while (hist.size() > VEL_SAMPLES) hist.removeFirst();
         }
-        velTrack.put(id, new double[]{e.getX(), e.getY(), e.getZ(), now, vx, vy, vz});
-        return new double[]{vx, vy, vz};
+        return lsqVelocity(hist, e);
+    }
+
+    // 最小二乗の傾き = 速度。slope_axis = Σ(t-t̄)·p_axis / Σ(t-t̄)²。サンプル不足/時刻分散0は deltaMovement へフォールバック。
+    private double[] lsqVelocity(java.util.ArrayDeque<double[]> hist, Entity e) {
+        int n = hist.size();
+        if (n < 2) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z}; }
+        double tBar = 0; for (double[] s : hist) tBar += s[3]; tBar /= n;
+        double sxx = 0, sx = 0, sy = 0, sz = 0;
+        for (double[] s : hist) {
+            double dt = s[3] - tBar;
+            sxx += dt * dt; sx += dt * s[0]; sy += dt * s[1]; sz += dt * s[2];
+        }
+        if (sxx < 1e-9) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z}; }
+        return new double[]{sx / sxx, sy / sxx, sz / sxx};
     }
 
     public Map<String, Double> luaMuzzle() {

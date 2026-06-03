@@ -869,3 +869,10 @@ MAIN は情報密度優先で `setTextScale(0.5)`、CONFIG は設定が少なく
 leadLag 固定だと残量が残る("惜しいけど後ろ")。真因は**遅延量が一定でない**こと: 制御ループは CC の mainThread 同期(getMuzzle/listEntities/aim/fire 等)で**毎tickちょうどに回らない**(数tickかかる)→照準がループ周期ぶん古くなる。
 → main.lua が `os.clock()` で**実測ループ周期**を出し `state.loopLag`[tick]に。turret.step の遅延 = `cfg.leadLag(基本spawn) + s.loopLag(実測)`。当てずっぽうの固定値でなく**実際の遅延に追従**。MAIN に `lag x.xt` を表示(透明化)。検証: lupa(loopLag が lead に加算、sol.lag=leadLag+loopLag)。
 > さらに詰めるなら mainThread 呼び数を減らしてループ自体を速くする(can-fire 系 read を発射直前だけに)余地あり。
+
+### 12.16 多角化（核の原則「一つの情報で計算するな」を適用）
+固定 leadLag は手動補正＝その場しのぎ。核(育つチェックリスト)の「**一つの情報で判断/計算するな・多角的な情報から総合しろ**」(cc-fission-control の `err=min(複数の余裕)` と同型)を偏差計算に適用:
+- **速度=複数サンプルの最小二乗**(`CCTurretTile.lsqVelocity`, VEL_SAMPLES=6): 単一差分のノイズを平滑、定常運動では厳密。位置の多角的情報。
+- **遅延=実測ループ周期の EMA**(`main.lua` α=0.2): 瞬間値の jitter(「たまに先撃ち」)を除去。時刻の多角的情報。
+- **手動 LAG は ±両方向の最終手段トリムに格下げ**(`leadLag` min=-3, 既定1=spawn定数)。誤差は計算の多角化で正し、ノブで埋めない。
+検証: compileJava + 実機(走り/飛行に安定命中、先撃ちジッタ減)。

@@ -44,7 +44,8 @@ local function control()
   local prevClock = os.clock()
   while true do
     local nowC = os.clock()
-    state.loopLag = (nowC - prevClock) * 20   -- 実測ループ周期[game tick]。mainThread同期で1tickちょうどに回らない分を遅延補償へ
+    -- 実測ループ周期[game tick]を EMA で平滑(瞬間値の jitter=「たまに先撃ち」を除去。複数の時刻情報から総合)
+    state.loopLag = state.loopLag * 0.8 + ((nowC - prevClock) * 20) * 0.2
     prevClock = nowC
     turret.step(P, cfg, state, ballistics, targeting)
     if mons.mode == "dual" then
