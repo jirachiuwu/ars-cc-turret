@@ -7,6 +7,19 @@ M.priorities = {
   fastestClose = function(a, b) return a.closeSpeed > b.closeSpeed end,  -- 接近速度(closing)優先=CIWS的に脅威優先
 }
 
+-- 標的モード別フィルタ(全て生存+視線ありが前提)。Java の e.hostile/e.isPlayer を使う。
+function M.makeFilter(mode)
+  if mode == "hostile" then       -- 敵対MOBのみ(防衛砲の既定)
+    return function(e) return e.isAlive and e.los and e.hostile and not e.isPlayer end
+  elseif mode == "players" then   -- プレイヤーのみ(PvP)
+    return function(e) return e.isAlive and e.los and e.isPlayer end
+  elseif mode == "all" then       -- プレイヤー含む全生物
+    return function(e) return e.isAlive and e.los end
+  else                            -- "mobs": 非プレイヤー生物全部(味方MOB含む)
+    return function(e) return e.isAlive and e.los and not e.isPlayer end
+  end
+end
+
 -- ents: listEntities() の戻り(1始まりIntキー table)。T: 砲口{x,y,z}。filter: e->bool。prioLess: (a,b)->bool。lockUuid: 追従中の uuid。
 function M.select(ents, T, filter, prioLess, lockUuid)
   local cands = {}

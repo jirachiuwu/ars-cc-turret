@@ -20,7 +20,11 @@ end
 -- ボタン押下を設定へ適用(cfg破壊更新 + P反映 + settings永続)。ui.tab 切替もここ。
 function M.applyAction(a, cfg, P, ui)
   if a.tab then ui.tab = a.tab; return end
-  if a.set == "priority" then
+  if a.cycleTarget then
+    local modes, i = cfg.targetModes, 1
+    for k, mn in ipairs(modes) do if mn == cfg.targetMode then i = k end end
+    cfg.targetMode = modes[(i % #modes) + 1]; settings.set("turret.target", cfg.targetMode)
+  elseif a.set == "priority" then
     cfg.priority = a.val; settings.set("turret.priority", a.val)
   elseif a.set == "creative" then
     cfg.creativeForce = a.val; P.setCreative(a.val); settings.set("turret.creative", a.val)
@@ -122,22 +126,24 @@ function M.renderConfig(m, name, cfg, top)
   local w, h = m.getSize()
   local R = {}
   put(m, w, oy + 1, "==== ARS-CC CONFIG ====", colors.cyan)
-  put(m, w, oy + 3, "PRIORITY", colors.white)
-  local x = button(m, 1, oy + 4, "nearest", cfg.priority == "nearest", R, { set = "priority", val = "nearest" })
-  button(m, x, oy + 4, "fastestClose", cfg.priority == "fastestClose", R, { set = "priority", val = "fastestClose" })
-  put(m, w, oy + 6, "CREATIVE", colors.white)
-  x = button(m, 1, oy + 7, "OFF", not cfg.creativeForce, R, { set = "creative", val = false })
-  button(m, x, oy + 7, "ON", cfg.creativeForce, R, { set = "creative", val = true })
+  put(m, w, oy + 2, "TARGET", colors.white)
+  button(m, 9, oy + 2, cfg.targetMode, true, R, { cycleTarget = true })   -- タップで巡回(hostile/mobs/all/players)
+  put(m, w, oy + 4, "PRIORITY", colors.white)
+  local x = button(m, 1, oy + 5, "nearest", cfg.priority == "nearest", R, { set = "priority", val = "nearest" })
+  button(m, x, oy + 5, "fastestClose", cfg.priority == "fastestClose", R, { set = "priority", val = "fastestClose" })
+  put(m, w, oy + 7, "CREATIVE", colors.white)
+  x = button(m, 1, oy + 8, "OFF", not cfg.creativeForce, R, { set = "creative", val = false })
+  button(m, x, oy + 8, "ON", cfg.creativeForce, R, { set = "creative", val = true })
   local function numrow(ry, label, val, kind)
     put(m, w, ry, label, colors.white)
     button(m, 10, ry, "-", false, R, { step = kind, dir = -1 })
     m.setCursorPos(14, ry); m.setTextColor(colors.white); m.setBackgroundColor(colors.black); m.write(val)
     button(m, 19, ry, "+", false, R, { step = kind, dir = 1 })
   end
-  numrow(oy + 9,  "SPEED",  ("%.2f"):format(cfg.speed),             "speed")
-  numrow(oy + 10, "RANGE",  ("%.0f"):format(cfg.range),             "range")
-  numrow(oy + 11, "COOLDN", ("%.0f"):format(cfg.fireCooldownTicks), "cooldown")
-  numrow(oy + 12, "AIMTOL", ("%.1f"):format(cfg.aimTolDeg),         "aimTol")
+  numrow(oy + 10, "SPEED",  ("%.2f"):format(cfg.speed),             "speed")
+  numrow(oy + 11, "RANGE",  ("%.0f"):format(cfg.range),             "range")
+  numrow(oy + 12, "COOLDN", ("%.0f"):format(cfg.fireCooldownTicks), "cooldown")
+  numrow(oy + 13, "AIMTOL", ("%.1f"):format(cfg.aimTolDeg),         "aimTol")
   put(m, w, h, ("%s  [CONFIG]"):format(name), colors.gray)
   return R
 end

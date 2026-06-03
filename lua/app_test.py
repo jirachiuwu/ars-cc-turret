@@ -69,7 +69,7 @@ check("step: no target -> IDLE", s.status == "IDLE")
 
 zombie = {"uuid": "z1", "type": "minecraft:zombie", "x": 12.0, "y": 0.0, "z": 0.0,
           "vx": -1.0, "vy": -0.078, "vz": 0.0, "height": 2.0,
-          "distance": 12.0, "isAlive": True, "isPlayer": False, "los": True}
+          "distance": 12.0, "isAlive": True, "isPlayer": False, "hostile": True, "los": True}
 fired["n"] = 0
 s = turret.new(9)
 turret.step(make_P([zombie]), cfg, s, ballistics, targeting)
@@ -85,6 +85,21 @@ fired["n"] = 0
 s = turret.new(9)
 turret.step(make_P([blocked]), cfg, s, ballistics, targeting)
 check("step: no-LoS -> no fire/IDLE", fired["n"] == 0 and s.status == "IDLE")
+
+# --- 2b) 標的モード filter ---
+def E(**kw):
+    d = {"isAlive": True, "los": True, "hostile": False, "isPlayer": False}; d.update(kw); return py2lua(d)
+fh, fm, fp, fa = (targeting.makeFilter("hostile"), targeting.makeFilter("mobs"),
+                  targeting.makeFilter("players"), targeting.makeFilter("all"))
+check("filter hostile: 敵対MOB yes",    fh(E(hostile=True)) == True)
+check("filter hostile: 受動MOB no",     fh(E(hostile=False)) == False)
+check("filter hostile: player no",      fh(E(hostile=True, isPlayer=True)) == False)
+check("filter mobs: 受動MOB yes",       fm(E(hostile=False)) == True)
+check("filter mobs: player no",         fm(E(isPlayer=True)) == False)
+check("filter players: player yes",     fp(E(isPlayer=True)) == True)
+check("filter players: MOB no",         fp(E(hostile=True)) == False)
+check("filter all: player yes",         fa(E(isPlayer=True)) == True)
+check("filter all: no-LoS no",          fa(E(los=False)) == False)
 
 # --- 3) monitor GUI v2 ---
 G["colors"] = py2lua({k: i for i, k in enumerate(
@@ -160,6 +175,10 @@ regs = monitor.renderConfig(cm, "monitor_1", cfg2)
 check("config tap SPEED+", apply_first(regs, lambda a: a.step == "speed" and a.dir == 1) and cfg2.speed > sp0)
 regs = monitor.renderConfig(cm, "monitor_1", cfg2)
 check("config tap CRE ON", apply_first(regs, lambda a: a.set == "creative" and a.val == True) and cfg2.creativeForce == True)
+cfg2.targetMode = "hostile"
+regs = monitor.renderConfig(cm, "monitor_1", cfg2)
+check("config tap TARGET cycles hostile->mobs",
+      apply_first(regs, lambda a: a.cycleTarget == True) and cfg2.targetMode == "mobs")
 check("settings persisted", _settings.get("turret.priority") == "fastestClose" and _settings.get("turret.creative") == True)
 
 # hit

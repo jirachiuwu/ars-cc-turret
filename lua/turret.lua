@@ -18,8 +18,9 @@ end
 function M.step(P, cfg, s, deps, tg)
   local T    = P.getMuzzle()
   local ents = P.listEntities(cfg.range)
-  local prio = tg.priorities[cfg.priority] or tg.priorities.nearest
-  local tgt  = tg.select(ents, T, cfg.filter, prio, s.lock)
+  local prio   = tg.priorities[cfg.priority] or tg.priorities.nearest
+  local filter = tg.makeFilter(cfg.targetMode)
+  local tgt    = tg.select(ents, T, filter, prio, s.lock)
 
   if not tgt then
     if s.status ~= "IDLE" then pushlog(s, "... target lost") end

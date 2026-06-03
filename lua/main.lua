@@ -11,6 +11,7 @@ settings.load(".turret")
 local cfg = {}
 for k, v in pairs(config) do cfg[k] = v end
 cfg.priority          = settings.get("turret.priority", config.priority)
+cfg.targetMode        = settings.get("turret.target", config.targetMode)
 cfg.creativeForce     = settings.get("turret.creative", config.creativeForce)
 cfg.speed             = settings.get("turret.speed", config.speed)
 cfg.range             = settings.get("turret.range", config.range)

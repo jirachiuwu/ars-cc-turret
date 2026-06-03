@@ -834,3 +834,13 @@ ars-cc-turret/                      ← 土台 ars-no-iframes 複製
 
 ### 12.8 CONFIG モニターのスケール
 MAIN は情報密度優先で `setTextScale(0.5)`、CONFIG は設定が少なく大きい方が見やすい/画面を埋めるので `1.0`。領域表は `getSize()` から算出するのでスケール差はタップ判定に影響しない。
+
+### 12.9 標的モード（誰を狙うか・切替式）
+設計要件「標的=敵/味方MOB・プレイヤー(任意)」を CONFIG の `TARGET` タップ巡回で実装。
+- Java `listEntities` が `hostile = (e instanceof Enemy)` を事実報告（modded 敵も `Enemy` 実装なら拾う）。
+- `targeting.makeFilter(mode)`: `hostile`(敵対のみ・既定) / `mobs`(非プレイヤー生物) / `all`(全部) / `players`(プレイヤーのみ)。全モード `isAlive and los` 前提。
+- `config.targetMode` + `targetModes`(巡回順)。`settings("turret.target")` で永続。
+- 検証(lupa): 各モードの包含/除外を assert。
+
+### 12.10 計算と発射の独立（既に分離済み・確認）
+制御ループは `updateInterval`(20Hz) 毎tickに「列挙→選択→偏差→照準(`P.aim`)」を計算し、`fire()` だけ `cooldown` でゲート。よって**発射間隔を伸ばしても計算/追従は 20Hz のまま落ちない**。1ループに入れてるのは「照準更新→引き金」の順序保証のため（別並行ループに割ると照準前発射の競合）。即時照準(§12.7)と合わせ、追従しながら独立した周期で連続射撃できる。VEL/LEADΔ パネルが発射の合間も更新し続けるのがその可視証拠。

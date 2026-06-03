@@ -12,6 +12,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
@@ -112,6 +113,7 @@ public class CCTurretTile extends RotatingTurretTile {
             m.put("distance", c.distanceTo(e.position()));
             m.put("isAlive", e.isAlive());
             m.put("isPlayer", e instanceof Player);
+            m.put("hostile", e instanceof Enemy);        // ★敵対MOB(Monster/Enemy実装)。Lua の標的モード絞り込み用(modded敵も拾う)
             m.put("los", hasLos(muzzle, center));        // ★視線(砲口→中心にブロックが無いか)。壁越し/地下を撃たない
             out.put(i++, m);
         }

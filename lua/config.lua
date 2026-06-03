@@ -7,7 +7,8 @@ return {
   aimTolDeg = 2.0,             -- 収束ゲート[度]
   fireCooldownTicks = 5,       -- 連射間隔[tick]
   lead = { maxIter = 6, eps = 0.01, maxT = 200 },
-  filter = function(e) return not e.isPlayer and e.isAlive and e.los end,  -- 非プレイヤー生存+視線あり
+  targetMode = "hostile",      -- 狙う対象。CONFIG の TARGET タップで巡回切替。下の targetModes 順
+  targetModes = { "hostile", "mobs", "all", "players" },  -- 敵対のみ/非プレイヤー生物/全部/プレイヤーのみ
   priority = "fastestClose",   -- "nearest" | "fastestClose"。モニタータップで実行時切替
   creativeForce = false,       -- 起動時に setCreative(true) するか(マナ源無しでも撃つ)
   updateInterval = 0.05,       -- 制御+モニター更新[s]。0.05=20Hz(速い)
