@@ -30,10 +30,10 @@ if cfg.creativeForce then P.setCreative(true) end
 -- モニター解決(2枚=MAIN+CONFIG / 1枚=タブ / 0枚=ヘッドレス)
 local mons = monitor.resolve(cfg)
 if mons.mode == "dual" then
-  monitor.setup(mons.main.obj, 0.5)              -- MAIN は情報密度優先(ログを多く)
+  monitor.setupFit(mons.main.obj, 26, 14)        -- MAIN も自動サイズ(パネルが読める最大スケール、ログは残りを埋める)
   monitor.setupFit(mons.config.obj, 22, 17)      -- CONFIG は内容が収まる最大スケールに自動調整
 elseif mons.mode == "single" then
-  monitor.setup(mons.single.obj, 0.5)
+  monitor.setupFit(mons.single.obj, 26, 16)
 end
 
 local state = turret.new(config.logSize)
