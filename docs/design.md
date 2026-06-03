@@ -806,3 +806,24 @@ ars-cc-turret/                      ← 土台 ars-no-iframes 複製
 
 ### 12.5 機械検証
 - `lua/app_test.py`(lupa=本物のLua): 全 lua 構文チェック + `turret.step` 状態機械/ログ + `monitor.render` 無エラー。`lua/targeting_test.py`(優先則), `lua/ballistics_test.lua`(偏差)。CC-API ランタイムと見た目だけ実機/目視。
+
+### 12.6 モニター GUI v2（火器管制ステーション・2画面）
+> v1 モニターは単画面の読み取り＋2トグル。v2 は「ちゃんと設計を詰める」(ゆいくん)で2画面の操作卓に。
+
+**枚数で縮退（モニター解決）:**
+- **2枚** → MAIN 専用 ＋ CONFIG 専用（本命）。
+- **1枚** → その画面に **タブ式**、上部の `[MAIN|CONFIG]` 切替ボタンで往復。
+- **0枚** → ヘッドレス（制御だけ・従来）。
+
+**役割割当:** 接続モニターを**名前ソート順**で `monitor_0`=MAIN / `monitor_1`=CONFIG（決定的）。`config.mainMonitor`/`config.configMonitor` に名前指定で上書き。各画面の隅に**自分の名前＋役割**を表示（どっちがどっちか一目）。タップ割当フローは作らない。
+
+**MAIN 画面:** STATUS(色)／標的(種別・距離・接近速度)／偏差解(LEAD・aim誤差・飛翔t)／火器管制ログ(TRK→SOL→FIRE)。20Hz。
+
+**CONFIG 画面:** トグルはピル、数値は増減。
+- `PRIORITY [nearest][fastestClose]` / `CREATIVE [OFF][ON]`（選択中を反転）
+- `SPEED [-] v [+]` / `RANGE` / `COOLDOWN` / `AIM TOL`（刻み・範囲は `config.steps`）
+- タップで即反映（`setProjectileSpeed` 等）＋`settings(.turret)`永続。背景色ボタン、押下1フレーム反転フィードバック。
+
+**ヒット判定:** render 時に `{x1,x2,y,action}` の領域表を構築 → `onTouch(monName,x,y)` が突合（描画と判定が必ず一致）。`monitor_touch` イベントの監視名で**どのモニターか**を判定（MAINのタップは無視 or 将来用、CONFIG/単画面のタップで設定変更）。
+
+**検証(lupa):** clamp/step（境界・刻み）、座標→アクション、モニター解決(2/1/0枚→役割)、render 無エラー。見た目だけ目視。

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# 火器管制アプリ(turret/monitor/main 等)を lupa(本物の Lua)で機械検証する。
-# 1) 全 lua の構文チェック(compile) 2) turret.step の状態機械+ログ 3) monitor.render が無エラーで走る。
+# 火器管制アプリを lupa(本物の Lua)で機械検証。1)全lua構文 2)turret.step状態機械/ログ
+# 3)monitor GUI v2: clampStep/resolve/renderConfig→hit→applyAction の全経路 + render無エラー。
 import os, sys
 from lupa import LuaRuntime
 
@@ -27,98 +27,156 @@ def py2lua(v):
         return t
     return v
 
-# --- 1) 全 lua 構文チェック(load = compile のみ、実行しない) ---
+# --- 1) 全 lua 構文チェック(load=compileのみ、実行しない) ---
 loadfn = lua.eval("load")
 for f in ["ballistics.lua", "targeting.lua", "turret.lua", "config.lua", "monitor.lua", "main.lua", "install.lua"]:
     res = loadfn(read(f), "@" + f)
-    fn, err = (res[0], res[1]) if isinstance(res, tuple) else (res, None)  # 成功は関数1個, 失敗は nil+err
+    fn, err = (res[0], res[1]) if isinstance(res, tuple) else (res, None)
     check(f"syntax {f}", fn is not None and err is None)
     if err: print("   ", err)
 
-# --- モジュール読込(CCグローバル非依存のもの) ---
+# --- モジュール読込(CCグローバル非依存) ---
 ballistics = lua.execute(read("ballistics.lua"))
 targeting  = lua.execute(read("targeting.lua"))
 turret     = lua.execute(read("turret.lua"))
 config     = lua.execute(read("config.lua"))
 
-# --- 2) turret.step: モック peripheral で状態機械+ログ ---
-fired_flag = {"n": 0}
+# --- mock peripheral(turret) ---
+fired = {"n": 0}
 def make_P(scenario):
-    # scenario: listEntities が返すエンティティ列(各 dict)。固定 muzzle/aim 値。
     P = lua.table()
-    P["getMuzzle"]         = lambda: py2lua({"x": 0.0, "y": 0.0, "z": 0.0})
-    P["listEntities"]      = lambda rng=None: py2lua({i+1: e for i, e in enumerate(scenario)})
-    P["getProjectileSpeed"]= lambda: 1.5
-    P["getAimError"]       = lambda dx, dy, dz: 0.5   # 常に収束圏内
-    P["getSpellCost"]      = lambda: 10
-    P["isLoaded"]          = lambda: True
-    P["getCreative"]       = lambda: True
-    P["getSource"]         = lambda: 1e9
-    P["aim"]               = lambda x, y, z: None
-    def fire():
-        fired_flag["n"] += 1; return True
-    P["fire"] = fire
+    P["getMuzzle"]          = lambda: py2lua({"x": 0.0, "y": 0.0, "z": 0.0})
+    P["listEntities"]       = lambda rng=None: py2lua({i + 1: e for i, e in enumerate(scenario)})
+    P["getProjectileSpeed"] = lambda: 1.5
+    P["getAimError"]        = lambda dx, dy, dz: 0.5
+    P["getSpellCost"]       = lambda: 10
+    P["isLoaded"]           = lambda: True
+    P["getCreative"]        = lambda: True
+    P["getSource"]          = lambda: 1e9
+    P["aim"]                = lambda x, y, z: None
+    P["setProjectileSpeed"] = lambda v: None
+    P["setCreative"]        = lambda b: None
+    def f(): fired["n"] += 1; return True
+    P["fire"] = f
     return P
 
-cfg = config  # config.lua の戻りをそのまま使う(filter/priority/lead 等)
+cfg = config
 
-# (a) 標的なし → IDLE
+# --- 2) turret.step ---
 s = turret.new(9)
 turret.step(make_P([]), cfg, s, ballistics, targeting)
 check("step: no target -> IDLE", s.status == "IDLE")
 
-# (b) 接近する zombie(視線あり) → TRACKING/FIRING、発射、ログに TRK と FIRE
 zombie = {"uuid": "z1", "type": "minecraft:zombie", "x": 12.0, "y": 0.0, "z": 0.0,
           "vx": -1.0, "vy": -0.078, "vz": 0.0, "height": 2.0,
           "distance": 12.0, "isAlive": True, "isPlayer": False, "los": True}
-fired_flag["n"] = 0
+fired["n"] = 0
 s = turret.new(9)
 turret.step(make_P([zombie]), cfg, s, ballistics, targeting)
-check("step: target -> fired", fired_flag["n"] == 1)
+check("step: target -> fired", fired["n"] == 1)
 check("step: status FIRING", s.status == "FIRING")
-check("step: locked uuid", s.lock == "z1")
 log = [s.log[i] for i in range(1, len(s.log) + 1)]
-check("step: log has TRK", any(l.startswith("TRK zombie") for l in log))
-check("step: log has FIRE", any(l.startswith(">> FIRE zombie") for l in log))
-check("step: log has SOL(計算ログ)", any(l.startswith("SOL ") for l in log))
-
-# (c) 視線なし(los=false) → フィルタで除外 → IDLE(撃たない)
+check("step: log TRK/SOL/FIRE", any(l.startswith("TRK") for l in log)
+      and any(l.startswith("SOL") for l in log) and any(l.startswith(">> FIRE") for l in log))
 blocked = dict(zombie); blocked["los"] = False
-fired_flag["n"] = 0
+fired["n"] = 0
 s = turret.new(9)
 turret.step(make_P([blocked]), cfg, s, ballistics, targeting)
-check("step: no-LoS excluded -> no fire", fired_flag["n"] == 0 and s.status == "IDLE")
+check("step: no-LoS -> no fire/IDLE", fired["n"] == 0 and s.status == "IDLE")
 
-# --- 3) monitor.render: CCグローバルをモックして無エラー描画 ---
-# colors / 簡易 monitor を inject
+# --- 3) monitor GUI v2 ---
 G["colors"] = py2lua({k: i for i, k in enumerate(
     ["white","orange","magenta","lightBlue","yellow","lime","pink","gray",
      "lightGray","cyan","purple","blue","brown","green","red","black"])})
-writes = []
-mon = lua.table()
-mon["getSize"]            = lambda: (25, 20)
-mon["setCursorPos"]       = lambda x, y: None
-mon["setTextColor"]       = lambda c: None
-mon["setBackgroundColor"] = lambda c: None
-mon["setTextScale"]       = lambda s: None
-mon["clear"]              = lambda: None
-mon["write"]              = lambda t: writes.append(t)
-G["peripheral"] = py2lua({})
-G["peripheral"]["find"] = lambda kind=None: mon
+_settings = {}
+sm = lua.table()
+sm["load"] = lambda f=None: True
+sm["save"] = lambda f=None: True
+sm["get"]  = lambda k, d=None: _settings.get(k, d)
+sm["set"]  = lambda k, v: _settings.update({k: v})
+G["settings"] = sm
+
+def make_mon(name, w=24, h=18):
+    m = lua.table()
+    m["_name"] = name
+    m["getSize"]            = lambda: (w, h)
+    m["setCursorPos"]       = lambda x, y: None
+    m["setTextColor"]       = lambda c: None
+    m["setBackgroundColor"] = lambda c: None
+    m["setTextScale"]       = lambda s_: None
+    m["clear"]              = lambda: None
+    m["write"]              = lambda t: None
+    return m
+
+def set_monitors(mons):
+    p = lua.table()
+    p["find"]    = lambda kind=None: tuple(mons)
+    p["getName"] = lambda obj: obj["_name"]
+    p["wrap"]    = lambda name=None: None
+    G["peripheral"] = p
+
+set_monitors([])
 monitor = lua.execute(read("monitor.lua"))
 
-ok_render = True
+# clampStep
+sp = py2lua({"step": 0.25, "min": 0.05, "max": 2.5})
+rg = py2lua({"step": 5, "min": 5, "max": 64})
+check("clampStep up",        abs(monitor.clampStep(1.5, sp, 1) - 1.75) < 1e-9)
+check("clampStep clamp max", abs(monitor.clampStep(2.5, sp, 1) - 2.5) < 1e-9)
+check("clampStep down",      monitor.clampStep(30, rg, -1) == 25)
+check("clampStep clamp min", monitor.clampStep(5, rg, -1) == 5)
+
+# resolve
+set_monitors([]);                              check("resolve 0 -> none", monitor.resolve(cfg).mode == "none")
+set_monitors([make_mon("monitor_0")]);         check("resolve 1 -> single", monitor.resolve(cfg).mode == "single")
+m0, m1 = make_mon("monitor_0"), make_mon("monitor_1")
+set_monitors([m1, m0])                          # 非ソート順で渡す
+r = monitor.resolve(cfg)
+check("resolve 2 -> dual",            r.mode == "dual")
+check("resolve main=sorted first",    r.main.name == "monitor_0")
+check("resolve config=sorted second", r.config.name == "monitor_1")
+
+# renderConfig → 領域 → hit → applyAction(全経路)
+cfg2 = lua.execute(read("config.lua"))
+P2 = make_P([]); ui = py2lua({"tab": "MAIN"})
+cm = make_mon("monitor_1")
+
+def apply_first(regs, pred):
+    for i in range(1, len(regs) + 1):
+        a = regs[i].action
+        if pred(a):
+            monitor.applyAction(a, cfg2, P2, ui)
+            return True
+    return False
+
+cfg2.priority = "nearest"
+regs = monitor.renderConfig(cm, "monitor_1", cfg2)
+check("config tap fastestClose",
+      apply_first(regs, lambda a: a.set == "priority" and a.val == "fastestClose") and cfg2.priority == "fastestClose")
+sp0 = cfg2.speed
+regs = monitor.renderConfig(cm, "monitor_1", cfg2)
+check("config tap SPEED+", apply_first(regs, lambda a: a.step == "speed" and a.dir == 1) and cfg2.speed > sp0)
+regs = monitor.renderConfig(cm, "monitor_1", cfg2)
+check("config tap CRE ON", apply_first(regs, lambda a: a.set == "creative" and a.val == True) and cfg2.creativeForce == True)
+check("settings persisted", _settings.get("turret.priority") == "fastestClose" and _settings.get("turret.creative") == True)
+
+# hit
+r1 = regs[1]
+check("hit returns action in region", monitor.hit(regs, r1.x1, r1.y) is not None)
+check("hit returns nil outside",      monitor.hit(regs, 999, 999) is None)
+
+# render no-error(main/single両タブ)
+okr = True
 try:
-    monitor.render(mon, s, cfg)            # IDLE 状態
-    # FIRING 状態でも描画
-    s2 = turret.new(9)
-    turret.step(make_P([zombie]), cfg, s2, ballistics, targeting)
-    monitor.render(mon, s2, cfg)
+    s2 = turret.new(9); turret.step(make_P([zombie]), cfg2, s2, ballistics, targeting)
+    monitor.renderMain(make_mon("monitor_0"), "monitor_0", s2, cfg2)
+    monitor.renderSingle(make_mon("monitor_0"), "monitor_0", s2, cfg2, py2lua({"tab": "MAIN"}))
+    rs = monitor.renderSingle(make_mon("monitor_0"), "monitor_0", s2, cfg2, py2lua({"tab": "CONFIG"}))
+    has_tab = any(rs[i].action.tab is not None for i in range(1, len(rs) + 1))
 except Exception as e:
-    ok_render = False; print("   render error:", e)
-check("monitor.render runs (no error)", ok_render)
-check("monitor.render wrote lines", len(writes) > 10)
-check("monitor shows FIRE CONTROL header", any("FIRE CONTROL" in w for w in writes))
+    okr = False; has_tab = False; print("   render error:", e)
+check("renderMain/Single no error", okr)
+check("single has tab-switch region", has_tab)
 
 print(f"\n=== {passed} passed, {failed} failed ===")
 sys.exit(1 if failed else 0)

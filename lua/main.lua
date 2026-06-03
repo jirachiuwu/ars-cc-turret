@@ -1,4 +1,4 @@
--- main.lua — エントリ。設定読込(config+settings)→周辺機器解決→制御ループ＋モニター＋タップを並行実行。
+-- main.lua — エントリ。設定読込(config+settings)→周辺機器/モニター解決→制御+描画+タッチを並行実行。
 -- 実行: コンピュータで `main`。停止: Ctrl+T。
 local config     = require("config")
 local targeting  = require("targeting")
@@ -10,36 +10,56 @@ local monitor    = require("monitor")
 settings.load(".turret")
 local cfg = {}
 for k, v in pairs(config) do cfg[k] = v end
-cfg.priority      = settings.get("turret.priority", config.priority)
-cfg.creativeForce = settings.get("turret.creative", config.creativeForce)
-cfg.speed         = settings.get("turret.speed", config.speed)
-cfg.range         = settings.get("turret.range", config.range)
+cfg.priority          = settings.get("turret.priority", config.priority)
+cfg.creativeForce     = settings.get("turret.creative", config.creativeForce)
+cfg.speed             = settings.get("turret.speed", config.speed)
+cfg.range             = settings.get("turret.range", config.range)
+cfg.fireCooldownTicks = settings.get("turret.cooldown", config.fireCooldownTicks)
+cfg.aimTolDeg         = settings.get("turret.aimtol", config.aimTolDeg)
 
--- タレット解決: modem名 → ダメなら型で find(直接隣接でも拾う)
+-- タレット解決: modem名 → ダメなら型で find
 local P = peripheral.wrap(config.name) or peripheral.find(config.type)
 if not P then error("turret not found (name=" .. config.name .. " type=" .. config.type .. ")") end
 P.setProjectileSpeed(cfg.speed)
 if cfg.creativeForce then P.setCreative(true) end
 
-local mon   = monitor.attach()
+-- モニター解決(2枚=MAIN+CONFIG / 1枚=タブ / 0枚=ヘッドレス)
+local mons = monitor.resolve(cfg)
+if mons.mode == "dual" then
+  monitor.setup(mons.main.obj); monitor.setup(mons.config.obj)
+elseif mons.mode == "single" then
+  monitor.setup(mons.single.obj)
+end
+
 local state = turret.new(config.logSize)
+local ui = { tab = "MAIN" }
+local regionsByName = {}   -- monitor名 → 領域表(タッチ突合用)
 
 local function control()
   while true do
     turret.step(P, cfg, state, ballistics, targeting)
-    if mon then monitor.render(mon, state, cfg) end
+    if mons.mode == "dual" then
+      regionsByName[mons.main.name]   = monitor.renderMain(mons.main.obj, mons.main.name, state, cfg)
+      regionsByName[mons.config.name] = monitor.renderConfig(mons.config.obj, mons.config.name, cfg)
+    elseif mons.mode == "single" then
+      regionsByName[mons.single.name] = monitor.renderSingle(mons.single.obj, mons.single.name, state, cfg, ui)
+    end
     os.sleep(cfg.updateInterval)
   end
 end
 
 local function touch()
-  if not mon then while true do os.sleep(1) end end   -- モニター無し: 何もしない
+  if mons.mode == "none" then while true do os.sleep(1) end end
   while true do
-    local _, _, x, y = os.pullEvent("monitor_touch")
-    monitor.onTouch(mon, x, y, cfg, P)
+    local _, mname, x, y = os.pullEvent("monitor_touch")
+    local regs = regionsByName[mname]
+    if regs then
+      local a = monitor.hit(regs, x, y)
+      if a then monitor.applyAction(a, cfg, P, ui) end
+    end
   end
 end
 
-print("ARS-CC turret online. priority=" .. cfg.priority .. (mon and "  [monitor]" or "  [no monitor]"))
+print("ARS-CC turret online. priority=" .. cfg.priority .. "  monitors=" .. mons.mode)
 print("Ctrl+T to stop.")
 parallel.waitForAny(control, touch)
