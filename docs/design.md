@@ -851,3 +851,12 @@ MAIN は情報密度優先で `setTextScale(0.5)`、CONFIG は設定が少なく
 - マナは shootSpell が1回だけ消費＝バーストは1トリガー分のコスト(安い弾幕)。
 - `TurretPeripheral.getBurst/setBurst`、`config.burst` + `steps.burst`、CONFIG の `[-] BURST [+]`、`settings("turret.burst")`。
 - 検証: compileJava + app_test(clampStep burst, CONFIG BURST タップ)。
+
+### 12.12 プレイヤー速度＝位置差分（残像撃ち修正・§11の宿題を実装）
+**プレイヤーの `getDeltaMovement()` はサーバ側でほぼ0**(移動がクライアント主導)。これだと listEntities の vx/vy/vz≈0 → リード≈0 → 現在座標を撃つ → 弾が着く頃には標的は先＝「残像撃ち」(MOBは getDeltaMovement が効くので命中していた)。
+→ `CCTurretTile` に `velTrack(uuid→{prevPos,prevTick,vel})` を持ち、**位置の前tick差分から速度を出す**(`(pos-prevPos)/dt`)。初見のみ deltaMovement で暫定、次tickから差分。同tick再呼びはキャッシュ。範囲外は掃除。プレイヤー/MOD含め真の速度になりリードが効く。
+- 注意: 標的が弾速 `s` より速いと `escapes()` で撃たない(追いつけない)→ 高速標的は SPEED を上げる。
+- 検証: compileJava + 実機(VEL がプレイヤーの実速度を示す/リードが当たる)。
+
+### 12.13 CONFIG スケール自動調整
+項目が増えると固定スケールでは溢れ/小さすぎになる。`monitor.fitScale(needCols,needRows)` が **内容が収まる最大の `setTextScale`** を選ぶ(2→0.5を降順試行)。CONFIG は `setupFit(22,16)`。検証: lupa(サイズがスケール依存のモックで期待スケールを選ぶ)。

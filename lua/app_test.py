@@ -203,5 +203,18 @@ except Exception as e:
 check("renderMain/Single no error", okr)
 check("single has tab-switch region", has_tab)
 
+# fitScale: スケールでサイズが変わるモニターで、内容が収まる最大スケールを選ぶ
+def scalable_mon(base_w, base_h):
+    st = {"s": 1.0}
+    m = lua.table()
+    m["setTextScale"]       = lambda s: st.__setitem__("s", s)
+    m["getSize"]            = lambda: (int(base_w / st["s"]), int(base_h / st["s"]))
+    m["setBackgroundColor"] = lambda c: None
+    m["clear"]              = lambda: None
+    return m
+check("fitScale picks 1.0 (25x18 monitor, need 22x16)", abs(monitor.fitScale(scalable_mon(25, 18), 22, 16) - 1.0) < 1e-9)
+check("fitScale picks 1.5 (40x30 monitor)",              abs(monitor.fitScale(scalable_mon(40, 30), 22, 16) - 1.5) < 1e-9)
+check("fitScale falls to 0.5 (tiny monitor)",           abs(monitor.fitScale(scalable_mon(10, 8), 22, 16) - 0.5) < 1e-9)
+
 print(f"\n=== {passed} passed, {failed} failed ===")
 sys.exit(1 if failed else 0)

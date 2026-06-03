@@ -73,6 +73,22 @@ function M.setup(m, scale)
   m.setTextScale(scale or 0.5); m.setBackgroundColor(colors.black); m.clear()
 end
 
+-- 内容(needCols×needRows)が収まる最大の文字スケールを選ぶ。手動スケール当ては不要に。
+function M.fitScale(m, needCols, needRows)
+  for _, sc in ipairs({ 2, 1.5, 1, 0.75, 0.5 }) do
+    m.setTextScale(sc)
+    local w, h = m.getSize()
+    if w >= needCols and h >= needRows then return sc end
+  end
+  return 0.5   -- どれも入らない: 最小(直前ループで0.5設定済み)
+end
+
+-- CONFIG用: 内容が収まる最大スケールに合わせてから初期化
+function M.setupFit(m, needCols, needRows)
+  M.fitScale(m, needCols, needRows)
+  m.setBackgroundColor(colors.black); m.clear()
+end
+
 local function put(m, w, y, txt, fg, bg)
   m.setCursorPos(1, y)
   m.setTextColor(fg or colors.white); m.setBackgroundColor(bg or colors.black)

@@ -37,6 +37,8 @@ public class CCTurretTile extends RotatingTurretTile {
     private long lastFireTick = 0L;                  // 「未発射」。Long.MIN_VALUE だと初弾で now - lastFireTick が long桁あふれ→負値化し連射ガードが常時trueになり永久に撃てない。gameTimeは単調増加で必ず≥0なので0Lが正しい番兵。
     private static final long MIN_FIRE_INTERVAL = 1;
     private TurretPeripheral peripheral;
+    // uuid -> {prevX,prevY,prevZ, prevGameTime, vx,vy,vz}。位置差分で速度を出す(プレイヤーの getDeltaMovement≈0 対策)
+    private final Map<java.util.UUID, double[]> velTrack = new HashMap<>();
 
     public CCTurretTile(BlockPos pos, BlockState state) {
         super(CCRegistry.CC_TURRET_TILE.get(), pos, state);
@@ -102,17 +104,20 @@ public class CCTurretTile extends RotatingTurretTile {
         Map<Integer, Map<String, Object>> out = new HashMap<>();
         Vec3 c = Vec3.atCenterOf(getBlockPos());
         Vec3 muzzle = muzzleVec();                      // LoS の起点(砲口)
+        long now = level.getGameTime();
+        java.util.Set<java.util.UUID> seen = new java.util.HashSet<>();
         int i = 1;
         for (Entity e : level.getEntities(null, new AABB(getBlockPos()).inflate(range))) {
             if (!(e instanceof LivingEntity)) continue;
-            Vec3 dm = e.getDeltaMovement();
+            double[] vel = trackVelocity(e, now);       // 位置差分速度(プレイヤーの getDeltaMovement≈0 を回避)
+            seen.add(e.getUUID());
             double h = e.getBbHeight();
             Vec3 center = new Vec3(e.getX(), e.getY() + h * 0.5, e.getZ());   // 胴体中心
             Map<String, Object> m = new HashMap<>();
             m.put("uuid", e.getUUID().toString());
             m.put("type", ForgeRegistries.ENTITY_TYPES.getKey(e.getType()).toString());
             m.put("x", e.getX());  m.put("y", e.getY());  m.put("z", e.getZ());
-            m.put("vx", dm.x);     m.put("vy", dm.y);     m.put("vz", dm.z);
+            m.put("vx", vel[0]);   m.put("vy", vel[1]);   m.put("vz", vel[2]);
             m.put("height", h);                          // ★足元→胴体中心狙い用(Lua: y + height/2)
             m.put("distance", c.distanceTo(e.position()));
             m.put("isAlive", e.isAlive());
@@ -121,7 +126,25 @@ public class CCTurretTile extends RotatingTurretTile {
             m.put("los", hasLos(muzzle, center));        // ★視線(砲口→中心にブロックが無いか)。壁越し/地下を撃たない
             out.put(i++, m);
         }
+        velTrack.keySet().retainAll(seen);               // 範囲外/消えた標的の追跡を掃除
         return out;
+    }
+
+    // 位置の前tick差分から速度を出す。getDeltaMovement はプレイヤーでサーバ側≈0 になり残像撃ちになるため信頼しない。
+    private double[] trackVelocity(Entity e, long now) {
+        java.util.UUID id = e.getUUID();
+        double[] p = velTrack.get(id);
+        double vx, vy, vz;
+        if (p == null) {                                 // 初見: deltaMovement で暫定(次tickから位置差分)
+            Vec3 dm = e.getDeltaMovement(); vx = dm.x; vy = dm.y; vz = dm.z;
+        } else if (now > p[3]) {                         // 1tick以上経過: 位置差分=真の速度(プレイヤー含む)
+            double dt = now - p[3];
+            vx = (e.getX() - p[0]) / dt; vy = (e.getY() - p[1]) / dt; vz = (e.getZ() - p[2]) / dt;
+        } else {                                         // 同tickの再呼び: 直前の値を返す(更新しない)
+            return new double[]{p[4], p[5], p[6]};
+        }
+        velTrack.put(id, new double[]{e.getX(), e.getY(), e.getZ(), now, vx, vy, vz});
+        return new double[]{vx, vy, vz};
     }
 
     public Map<String, Double> luaMuzzle() {
