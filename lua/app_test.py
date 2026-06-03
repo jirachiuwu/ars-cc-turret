@@ -78,6 +78,8 @@ check("step: status FIRING", s.status == "FIRING")
 log = [s.log[i] for i in range(1, len(s.log) + 1)]
 check("step: log TRK/SOL/FIRE", any(l.startswith("TRK") for l in log)
       and any(l.startswith("SOL") for l in log) and any(l.startswith(">> FIRE") for l in log))
+check("step: VEL computed (|V|~1.0)", abs(s.sol.vel - 1.0) < 0.05)       # vx=-1.0, vy clamped, vz=0
+check("step: LEADd>0 (偏差が効いてる)", s.sol.leadOff > 0.5)             # |V|*t ぶん前を狙う
 blocked = dict(zombie); blocked["los"] = False
 fired["n"] = 0
 s = turret.new(9)

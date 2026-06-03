@@ -54,10 +54,17 @@ function M.step(P, cfg, s, deps, tg)
     end
   end
 
+  -- 偏差の可視化: 標的速度 |V| と リード量(現在位置→lead点の距離=|V|×飛翔t)。LEADΔ>0=偏差が効いてる証拠。
+  local vel = math.sqrt(V.x * V.x + V.y * V.y + V.z * V.z)
+  local leadOff = 0
+  if aimPt then
+    local dx, dy, dz = aimPt.x - Pp.x, aimPt.y - Pp.y, aimPt.z - Pp.z
+    leadOff = math.sqrt(dx * dx + dy * dy + dz * dz)
+  end
   s.status = fired and "FIRING" or (esc and "ESCAPING" or "TRACKING")
   s.target = { type = tgt.type, distance = tgt.distance, closeSpeed = tgt.closeSpeed or 0, uuid = tgt.uuid }
   s.sol = { x = aimPt and aimPt.x, y = aimPt and aimPt.y, z = aimPt and aimPt.z,
-            err = err, flight = flight, esc = esc }
+            err = err, flight = flight, esc = esc, vel = vel, leadOff = leadOff }
   if s.cooldown > 0 then s.cooldown = s.cooldown - 1 end
   return s
 end
