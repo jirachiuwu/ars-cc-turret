@@ -144,7 +144,7 @@ public class CCTurretTile extends RotatingTurretTile {
         return fit(hist, e);
     }
 
-    private static final double ACCEL_CLAMP = 0.2;   // 加速度の暴れ(ノイズ)を抑える上限[b/t²]
+    private static final double ACCEL_CLAMP = 0.05;  // 加速度の暴れ(ノイズ)を抑える上限[b/t²]。実mob/playerの加速度は小さい
 
     // 放物線フィット p(t)=c0+c1·t+c2·t²(t は最新サンプルを0=現在に中心化)。velocity=c1(現在), accel=2·c2。
     // n<3 は1次(加速度0)へ、行列特異は deltaMovement へフォールバック。

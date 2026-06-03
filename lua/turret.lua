@@ -42,7 +42,12 @@ function M.step(P, cfg, s, deps, tg)
   local Pc = { x = Pp.x + V.x * lag, y = Pp.y + V.y * lag, z = Pp.z + V.z * lag }
   local esc = deps.escapes(T, Pc, V, sp)
   local aimPt, flight
-  if esc then aimPt = Pc else aimPt, flight = deps.lead(T, Pc, V, sp, cfg.lead, A) end  -- 2次予測(曲線対応)
+  if esc then
+    aimPt = Pc
+  else
+    aimPt, flight = deps.lead(T, Pc, V, sp, cfg.lead, A)               -- 2次予測(曲線対応)
+    if not aimPt then aimPt, flight = deps.lead(T, Pc, V, sp, cfg.lead) end  -- 加速度で発散したら1次へフォールバック(撃てなくなるのを防ぐ)
+  end
 
   if isNew then pushlog(s, ("TRK %s d=%.1f"):format(short(tgt.type), tgt.distance)) end
 

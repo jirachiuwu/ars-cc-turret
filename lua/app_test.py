@@ -100,6 +100,13 @@ _opt = py2lua({"maxIter": 8, "eps": 0.01, "maxT": 200})
 f1 = ballistics.lead(_T, _P, _V, 1.5, _opt)[0]        # 加速度なし(戻りは future,t のタプル)
 f2 = ballistics.lead(_T, _P, _V, 1.5, _opt, _A)[0]    # 加速度あり
 check("lead: A bends future (2次予測)", f1 is not None and f2 is not None and (f2.z - f1.z) > 0.3)
+
+# 回帰: 加速度で2次が発散しても1次フォールバックで撃てる("狙ってる間撃たない"バグ防止)
+curver = dict(zombie); curver["x"] = 20.0; curver["vx"] = 1.0; curver["ax"] = 0.3; curver["vy"] = 0.0; curver["vz"] = 0.0
+fired["n"] = 0
+sc_ = turret.new(9)
+turret.step(make_P([curver]), cfg, sc_, ballistics, targeting)
+check("step: 2次発散→1次フォールバックで発射", fired["n"] == 1 and sc_.sol.x is not None)
 blocked = dict(zombie); blocked["los"] = False
 fired["n"] = 0
 s = turret.new(9)
