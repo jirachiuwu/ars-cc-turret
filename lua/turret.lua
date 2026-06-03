@@ -31,13 +31,17 @@ function M.step(P, cfg, s, deps, tg)
 
   local isNew = (not s.target) or s.target.uuid ~= tgt.uuid
   s.lock = tgt.uuid
-  local Pp = { x = tgt.x, y = tgt.y + (tgt.height or 0) * 0.5, z = tgt.z }  -- 胴体中心
+  local Pp = { x = tgt.x, y = tgt.y + (tgt.height or 0) * 0.5, z = tgt.z }  -- 胴体中心(現在位置)
   local vy = (math.abs(tgt.vy) < 0.1) and 0 or tgt.vy                       -- 重力ノイズ無視
   local V  = { x = tgt.vx, y = vy, z = tgt.vz }
   local sp = P.getProjectileSpeed()                                        -- クランプ後の真値
-  local esc = deps.escapes(T, Pp, V, sp)
+  -- システム遅延補償: センサ→弾underway の遅れ(約1〜1.5tick)で標的が V*leadLag 進む分を先に織り込む。
+  -- これが無いと速い標的ほど「ギリギリ後ろ(残像撃ち)」になる。Pc=遅延補償後の標的位置。
+  local lag = cfg.leadLag or 0
+  local Pc = { x = Pp.x + V.x * lag, y = Pp.y + V.y * lag, z = Pp.z + V.z * lag }
+  local esc = deps.escapes(T, Pc, V, sp)
   local aimPt, flight
-  if esc then aimPt = Pp else aimPt, flight = deps.lead(T, Pp, V, sp, cfg.lead) end
+  if esc then aimPt = Pc else aimPt, flight = deps.lead(T, Pc, V, sp, cfg.lead) end
 
   if isNew then pushlog(s, ("TRK %s d=%.1f"):format(short(tgt.type), tgt.distance)) end
 

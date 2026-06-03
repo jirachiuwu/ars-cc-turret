@@ -859,4 +859,8 @@ MAIN は情報密度優先で `setTextScale(0.5)`、CONFIG は設定が少なく
 - 検証: compileJava + 実機(VEL がプレイヤーの実速度を示す/リードが当たる)。
 
 ### 12.13 CONFIG スケール自動調整
-項目が増えると固定スケールでは溢れ/小さすぎになる。`monitor.fitScale(needCols,needRows)` が **内容が収まる最大の `setTextScale`** を選ぶ(2→0.5を降順試行)。CONFIG は `setupFit(22,16)`。検証: lupa(サイズがスケール依存のモックで期待スケールを選ぶ)。
+項目が増えると固定スケールでは溢れ/小さすぎになる。`monitor.fitScale(needCols,needRows)` が **内容が収まる最大の `setTextScale`** を選ぶ(2→0.5を降順試行)。CONFIG は `setupFit(22,17)`。検証: lupa(サイズがスケール依存のモックで期待スケールを選ぶ)。
+
+### 12.14 システム遅延補償 leadLag（残像撃ちの最終調整）
+位置差分速度(§12.12)でリードは効くが、**最大弾速でも速い標的(走り/飛行)はギリギリ後ろ**になる。原因はセンサ→弾underway の遅延(弾は spawn 次tickから動く＋速度は前tick差分=半tick遅れ ≈ 1〜1.5tick)。その間に標的が `V*leadLag` 進む分が未補償＝残像。
+→ turret.step で**標的位置を `V*leadLag` 先に進めてから lead** する(`Pc = Pp + V*lag`)。残量は速度比例なので全速度域で相殺。`config.leadLag`(既定1.5tick)、CONFIG の `[-] LAG [+]` で微調整、`settings("turret.leadlag")`。Lua のみ=再起動不要。検証: lupa(leadLag>0 でリード量が増える)。

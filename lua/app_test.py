@@ -81,6 +81,11 @@ check("step: log TRK/SOL/FIRE", any(l.startswith("TRK") for l in log)
       and any(l.startswith("SOL") for l in log) and any(l.startswith(">> FIRE") for l in log))
 check("step: VEL computed (|V|~1.0)", abs(s.sol.vel - 1.0) < 0.05)       # vx=-1.0, vy clamped, vz=0
 check("step: LEADd>0 (偏差が効いてる)", s.sol.leadOff > 0.5)             # |V|*t ぶん前を狙う
+# leadLag(遅延補償): 標的を V*lag 先に進めるぶんリードが増える
+cfg.leadLag = 0;  s0 = turret.new(9); turret.step(make_P([zombie]), cfg, s0, ballistics, targeting)
+cfg.leadLag = 3;  s3 = turret.new(9); turret.step(make_P([zombie]), cfg, s3, ballistics, targeting)
+cfg.leadLag = config.leadLag
+check("step: leadLag increases lead (遅延補償)", s3.sol.leadOff > s0.sol.leadOff + 1.0)
 blocked = dict(zombie); blocked["los"] = False
 fired["n"] = 0
 s = turret.new(9)
@@ -177,6 +182,9 @@ check("config tap SPEED+", apply_first(regs, lambda a: a.step == "speed" and a.d
 b0 = cfg2.burst
 regs = monitor.renderConfig(cm, "monitor_1", cfg2)
 check("config tap BURST+", apply_first(regs, lambda a: a.step == "burst" and a.dir == 1) and cfg2.burst == b0 + 1)
+lg0 = cfg2.leadLag
+regs = monitor.renderConfig(cm, "monitor_1", cfg2)
+check("config tap LAG+", apply_first(regs, lambda a: a.step == "leadLag" and a.dir == 1) and cfg2.leadLag > lg0)
 regs = monitor.renderConfig(cm, "monitor_1", cfg2)
 check("config tap CRE ON", apply_first(regs, lambda a: a.set == "creative" and a.val == True) and cfg2.creativeForce == True)
 cfg2.targetMode = "hostile"

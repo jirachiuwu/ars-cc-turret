@@ -38,6 +38,8 @@ function M.applyAction(a, cfg, P, ui)
     cfg.fireCooldownTicks = M.clampStep(cfg.fireCooldownTicks, cfg.steps.cooldown, a.dir); settings.set("turret.cooldown", cfg.fireCooldownTicks)
   elseif a.step == "aimTol" then
     cfg.aimTolDeg = M.clampStep(cfg.aimTolDeg, cfg.steps.aimTol, a.dir); settings.set("turret.aimtol", cfg.aimTolDeg)
+  elseif a.step == "leadLag" then
+    cfg.leadLag = M.clampStep(cfg.leadLag, cfg.steps.leadLag, a.dir); settings.set("turret.leadlag", cfg.leadLag)
   end
   settings.save(".turret")
 end
@@ -163,6 +165,7 @@ function M.renderConfig(m, name, cfg, top)
   numrow(oy + 12, "RANGE",  ("%.0f"):format(cfg.range),             "range")
   numrow(oy + 13, "COOLDN", ("%.0f"):format(cfg.fireCooldownTicks), "cooldown")
   numrow(oy + 14, "AIMTOL", ("%.1f"):format(cfg.aimTolDeg),         "aimTol")
+  numrow(oy + 15, "LAG",    ("%.1f"):format(cfg.leadLag),           "leadLag")
   put(m, w, h, ("%s  [CONFIG]"):format(name), colors.gray)
   return R
 end

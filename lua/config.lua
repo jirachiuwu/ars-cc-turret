@@ -6,6 +6,7 @@ return {
   speed = 1.5,                 -- blocks/tick。setProjectileSpeed への入力。偏差は getProjectileSpeed() を読む
   burst = 1,                   -- 1トリガーで撃つ弾数(弾幕)。Nが増えるほど自動で扇状に拡散。1=厳密命中
   aimTolDeg = 2.0,             -- 収束ゲート[度]
+  leadLag = 1.5,               -- システム遅延補償[tick]。標的を V*leadLag 先に進めてリード。速い的の残像撃ち対策
   fireCooldownTicks = 5,       -- 連射間隔[tick]
   lead = { maxIter = 6, eps = 0.01, maxT = 200 },
   targetMode = "hostile",      -- 狙う対象。CONFIG の TARGET タップで巡回切替。下の targetModes 順
@@ -25,5 +26,6 @@ return {
     cooldown = { step = 1,    min = 1,    max = 40 },
     aimTol   = { step = 0.5,  min = 0.5,  max = 10 },
     burst    = { step = 1,    min = 1,    max = 10 },
+    leadLag  = { step = 0.5,  min = 0,    max = 6 },
   },
 }

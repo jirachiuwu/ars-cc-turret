@@ -18,6 +18,7 @@ cfg.burst             = settings.get("turret.burst", config.burst)
 cfg.range             = settings.get("turret.range", config.range)
 cfg.fireCooldownTicks = settings.get("turret.cooldown", config.fireCooldownTicks)
 cfg.aimTolDeg         = settings.get("turret.aimtol", config.aimTolDeg)
+cfg.leadLag           = settings.get("turret.leadlag", config.leadLag)
 
 -- タレット解決: modem名 → ダメなら型で find
 local P = peripheral.wrap(config.name) or peripheral.find(config.type)
@@ -30,7 +31,7 @@ if cfg.creativeForce then P.setCreative(true) end
 local mons = monitor.resolve(cfg)
 if mons.mode == "dual" then
   monitor.setup(mons.main.obj, 0.5)              -- MAIN は情報密度優先(ログを多く)
-  monitor.setupFit(mons.config.obj, 22, 16)      -- CONFIG は内容が収まる最大スケールに自動調整
+  monitor.setupFit(mons.config.obj, 22, 17)      -- CONFIG は内容が収まる最大スケールに自動調整
 elseif mons.mode == "single" then
   monitor.setup(mons.single.obj, 0.5)
 end
