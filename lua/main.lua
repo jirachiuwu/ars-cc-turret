@@ -41,7 +41,11 @@ local ui = { tab = "MAIN" }
 local regionsByName = {}   -- monitor名 → 領域表(タッチ突合用)
 
 local function control()
+  local prevClock = os.clock()
   while true do
+    local nowC = os.clock()
+    state.loopLag = (nowC - prevClock) * 20   -- 実測ループ周期[game tick]。mainThread同期で1tickちょうどに回らない分を遅延補償へ
+    prevClock = nowC
     turret.step(P, cfg, state, ballistics, targeting)
     if mons.mode == "dual" then
       regionsByName[mons.main.name]   = monitor.renderMain(mons.main.obj, mons.main.name, state, cfg)

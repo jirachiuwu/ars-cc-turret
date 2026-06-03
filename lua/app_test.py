@@ -84,8 +84,13 @@ check("step: LEADd>0 (偏差が効いてる)", s.sol.leadOff > 0.5)             
 # leadLag(遅延補償): 標的を V*lag 先に進めるぶんリードが増える
 cfg.leadLag = 0;  s0 = turret.new(9); turret.step(make_P([zombie]), cfg, s0, ballistics, targeting)
 cfg.leadLag = 3;  s3 = turret.new(9); turret.step(make_P([zombie]), cfg, s3, ballistics, targeting)
-cfg.leadLag = config.leadLag
 check("step: leadLag increases lead (遅延補償)", s3.sol.leadOff > s0.sol.leadOff + 1.0)
+# s.loopLag(実測ループ周期)も遅延補償に効く。lag = leadLag + loopLag
+cfg.leadLag = 0
+sL = turret.new(9); sL.loopLag = 3; turret.step(make_P([zombie]), cfg, sL, ballistics, targeting)
+check("step: loopLag adds to lead (自動遅延)", sL.sol.leadOff > s0.sol.leadOff + 1.0)
+check("step: sol.lag = leadLag + loopLag", abs(sL.sol.lag - 3.0) < 1e-9)
+cfg.leadLag = config.leadLag
 blocked = dict(zombie); blocked["los"] = False
 fired["n"] = 0
 s = turret.new(9)

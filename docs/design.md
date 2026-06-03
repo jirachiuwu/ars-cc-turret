@@ -863,4 +863,9 @@ MAIN は情報密度優先で `setTextScale(0.5)`、CONFIG は設定が少なく
 
 ### 12.14 システム遅延補償 leadLag（残像撃ちの最終調整）
 位置差分速度(§12.12)でリードは効くが、**最大弾速でも速い標的(走り/飛行)はギリギリ後ろ**になる。原因はセンサ→弾underway の遅延(弾は spawn 次tickから動く＋速度は前tick差分=半tick遅れ ≈ 1〜1.5tick)。その間に標的が `V*leadLag` 進む分が未補償＝残像。
-→ turret.step で**標的位置を `V*leadLag` 先に進めてから lead** する(`Pc = Pp + V*lag`)。残量は速度比例なので全速度域で相殺。`config.leadLag`(既定1.5tick)、CONFIG の `[-] LAG [+]` で微調整、`settings("turret.leadlag")`。Lua のみ=再起動不要。検証: lupa(leadLag>0 でリード量が増える)。
+→ turret.step で**標的位置を `V*leadLag` 先に進めてから lead** する(`Pc = Pp + V*lag`)。残量は速度比例なので全速度域で相殺。`config.leadLag`、CONFIG の `[-] LAG [+]` で微調整、`settings("turret.leadlag")`。Lua のみ=再起動不要。検証: lupa(leadLag>0 でリード量が増える)。
+
+### 12.15 遅延の自動実測（固定値をやめる）
+leadLag 固定だと残量が残る("惜しいけど後ろ")。真因は**遅延量が一定でない**こと: 制御ループは CC の mainThread 同期(getMuzzle/listEntities/aim/fire 等)で**毎tickちょうどに回らない**(数tickかかる)→照準がループ周期ぶん古くなる。
+→ main.lua が `os.clock()` で**実測ループ周期**を出し `state.loopLag`[tick]に。turret.step の遅延 = `cfg.leadLag(基本spawn) + s.loopLag(実測)`。当てずっぽうの固定値でなく**実際の遅延に追従**。MAIN に `lag x.xt` を表示(透明化)。検証: lupa(loopLag が lead に加算、sol.lag=leadLag+loopLag)。
+> さらに詰めるなら mainThread 呼び数を減らしてループ自体を速くする(can-fire 系 read を発射直前だけに)余地あり。

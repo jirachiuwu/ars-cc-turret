@@ -125,7 +125,7 @@ function M.renderMain(m, name, s, cfg, top)
     put(m, w, oy + 5, ("LEAD %.0f,%.0f,%.0f"):format(s.sol.x, s.sol.y, s.sol.z), colors.lime)
     put(m, w, oy + 6, ("AIM  %.1f deg  t=%.0ft"):format(s.sol.err or 0, s.sol.flight or 0), colors.lime)
     -- 偏差の証拠: VEL=標的速度, LEADd=リード量(現在位置からのズレ)。VEL>0でLEADd>0なら偏差が効いてる。
-    put(m, w, oy + 7, ("VEL %.2f  LEADd %.2f"):format(s.sol.vel or 0, s.sol.leadOff or 0), colors.orange)
+    put(m, w, oy + 7, ("VEL %.2f LEADd %.2f lag %.1ft"):format(s.sol.vel or 0, s.sol.leadOff or 0, s.sol.lag or 0), colors.orange)
   else
     put(m, w, oy + 5, "LEAD --", colors.gray); put(m, w, oy + 6, "", colors.gray); put(m, w, oy + 7, "", colors.gray)
   end

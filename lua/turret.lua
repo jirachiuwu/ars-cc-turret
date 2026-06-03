@@ -11,7 +11,7 @@ end
 
 function M.new(logSize)
   return { lock = nil, cooldown = 0, status = "IDLE", target = nil, sol = nil,
-           log = {}, logSize = logSize or 9, shots = 0 }
+           log = {}, logSize = logSize or 9, shots = 0, loopLag = 0 }
 end
 
 -- 1tick分の火器管制。P=turret peripheral, cfg=設定, s=状態(破壊更新), deps=ballistics, tg=targeting。
@@ -35,9 +35,10 @@ function M.step(P, cfg, s, deps, tg)
   local vy = (math.abs(tgt.vy) < 0.1) and 0 or tgt.vy                       -- 重力ノイズ無視
   local V  = { x = tgt.vx, y = vy, z = tgt.vz }
   local sp = P.getProjectileSpeed()                                        -- クランプ後の真値
-  -- システム遅延補償: センサ→弾underway の遅れ(約1〜1.5tick)で標的が V*leadLag 進む分を先に織り込む。
-  -- これが無いと速い標的ほど「ギリギリ後ろ(残像撃ち)」になる。Pc=遅延補償後の標的位置。
-  local lag = cfg.leadLag or 0
+  -- システム遅延補償: センサ→弾underway の遅れぶん標的が進む分を先に織り込む。
+  -- 遅延 = 基本(spawn等, cfg.leadLag) + 実測ループ周期(s.loopLag, mainThread同期で毎tickちょうどに回らない分)。
+  -- ループ周期を測って自動で足すので、固定値の当てずっぽうでなく実際の遅延に追従する。これが無いと速い標的ほど残像撃ち。
+  local lag = (cfg.leadLag or 0) + (s.loopLag or 0)
   local Pc = { x = Pp.x + V.x * lag, y = Pp.y + V.y * lag, z = Pp.z + V.z * lag }
   local esc = deps.escapes(T, Pc, V, sp)
   local aimPt, flight
@@ -69,7 +70,7 @@ function M.step(P, cfg, s, deps, tg)
   s.status = fired and "FIRING" or (esc and "ESCAPING" or "TRACKING")
   s.target = { type = tgt.type, distance = tgt.distance, closeSpeed = tgt.closeSpeed or 0, uuid = tgt.uuid }
   s.sol = { x = aimPt and aimPt.x, y = aimPt and aimPt.y, z = aimPt and aimPt.z,
-            err = err, flight = flight, esc = esc, vel = vel, leadOff = leadOff }
+            err = err, flight = flight, esc = esc, vel = vel, leadOff = leadOff, lag = lag }
   if s.cooldown > 0 then s.cooldown = s.cooldown - 1 end
   return s
 end
