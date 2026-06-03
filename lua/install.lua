@@ -15,7 +15,11 @@ for _, f in ipairs(FILES) do
 end
 
 if fails == 0 then
-  print("installed. run:  main")
+  -- 自動起動: 再起動/チャンク再読込でタレットが自動再開(防衛装置として完成形)。不要なら startup を削除。
+  local h = fs.open("startup.lua", "w")
+  h.write('shell.run("main")\n')
+  h.close()
+  print("installed (+startup). run:  main")
 else
   print(fails .. " file(s) failed. http 有効か URL を確認。")
 end
