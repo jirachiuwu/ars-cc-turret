@@ -56,6 +56,7 @@ def make_P(scenario):
     P["aim"]                = lambda x, y, z: None
     P["setProjectileSpeed"] = lambda v: None
     P["setCreative"]        = lambda b: None
+    P["setBurst"]           = lambda n: None
     def f(): fired["n"] += 1; return True
     P["fire"] = f
     return P
@@ -173,6 +174,9 @@ check("config tap fastestClose",
 sp0 = cfg2.speed
 regs = monitor.renderConfig(cm, "monitor_1", cfg2)
 check("config tap SPEED+", apply_first(regs, lambda a: a.step == "speed" and a.dir == 1) and cfg2.speed > sp0)
+b0 = cfg2.burst
+regs = monitor.renderConfig(cm, "monitor_1", cfg2)
+check("config tap BURST+", apply_first(regs, lambda a: a.step == "burst" and a.dir == 1) and cfg2.burst == b0 + 1)
 regs = monitor.renderConfig(cm, "monitor_1", cfg2)
 check("config tap CRE ON", apply_first(regs, lambda a: a.set == "creative" and a.val == True) and cfg2.creativeForce == True)
 cfg2.targetMode = "hostile"

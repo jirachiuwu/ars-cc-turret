@@ -30,6 +30,8 @@ function M.applyAction(a, cfg, P, ui)
     cfg.creativeForce = a.val; P.setCreative(a.val); settings.set("turret.creative", a.val)
   elseif a.step == "speed" then
     cfg.speed = M.clampStep(cfg.speed, cfg.steps.speed, a.dir); P.setProjectileSpeed(cfg.speed); settings.set("turret.speed", cfg.speed)
+  elseif a.step == "burst" then
+    cfg.burst = M.clampStep(cfg.burst, cfg.steps.burst, a.dir); P.setBurst(cfg.burst); settings.set("turret.burst", cfg.burst)
   elseif a.step == "range" then
     cfg.range = M.clampStep(cfg.range, cfg.steps.range, a.dir); settings.set("turret.range", cfg.range)
   elseif a.step == "cooldown" then
@@ -141,9 +143,10 @@ function M.renderConfig(m, name, cfg, top)
     button(m, 19, ry, "+", false, R, { step = kind, dir = 1 })
   end
   numrow(oy + 10, "SPEED",  ("%.2f"):format(cfg.speed),             "speed")
-  numrow(oy + 11, "RANGE",  ("%.0f"):format(cfg.range),             "range")
-  numrow(oy + 12, "COOLDN", ("%.0f"):format(cfg.fireCooldownTicks), "cooldown")
-  numrow(oy + 13, "AIMTOL", ("%.1f"):format(cfg.aimTolDeg),         "aimTol")
+  numrow(oy + 11, "BURST",  ("%.0f"):format(cfg.burst),            "burst")
+  numrow(oy + 12, "RANGE",  ("%.0f"):format(cfg.range),             "range")
+  numrow(oy + 13, "COOLDN", ("%.0f"):format(cfg.fireCooldownTicks), "cooldown")
+  numrow(oy + 14, "AIMTOL", ("%.1f"):format(cfg.aimTolDeg),         "aimTol")
   put(m, w, h, ("%s  [CONFIG]"):format(name), colors.gray)
   return R
 end

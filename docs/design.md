@@ -844,3 +844,10 @@ MAIN は情報密度優先で `setTextScale(0.5)`、CONFIG は設定が少なく
 
 ### 12.10 計算と発射の独立（既に分離済み・確認）
 制御ループは `updateInterval`(20Hz) 毎tickに「列挙→選択→偏差→照準(`P.aim`)」を計算し、`fire()` だけ `cooldown` でゲート。よって**発射間隔を伸ばしても計算/追従は 20Hz のまま落ちない**。1ループに入れてるのは「照準更新→引き金」の順序保証のため（別並行ループに割ると照準前発射の競合）。即時照準(§12.7)と合わせ、追従しながら独立した周期で連続射撃できる。VEL/LEADΔ パネルが発射の合間も更新し続けるのがその可視証拠。
+
+### 12.11 バースト弾幕（連射の上限突破）
+連射速度の限界は cooldown ではなく**ゲームの 20 tick/秒**＝単発は最速 20発/秒。それ以上の弾幕は**1トリガーで複数弾**で出す。
+- `CCTurretTile.burst`(1..10, NBT, Lua可変) を追加。`onCast` で `burst` 発ループ、`spread=(burst-1)*0.06` を `shoot` の inaccuracy に渡す＝**Nが増えるほど自動で扇状に拡散**(burst=1 は spread0 で厳密命中＝従来どおり)。
+- マナは shootSpell が1回だけ消費＝バーストは1トリガー分のコスト(安い弾幕)。
+- `TurretPeripheral.getBurst/setBurst`、`config.burst` + `steps.burst`、CONFIG の `[-] BURST [+]`、`settings("turret.burst")`。
+- 検証: compileJava + app_test(clampStep burst, CONFIG BURST タップ)。

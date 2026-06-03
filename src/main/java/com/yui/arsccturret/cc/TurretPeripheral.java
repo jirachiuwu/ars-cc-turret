@@ -32,10 +32,12 @@ public class TurretPeripheral implements IPeripheral {
     // --- 純フィールドread: mainThread不要 ---
     @LuaFunction public final double getProjectileSpeed() { return tile.getProjectileSpeed(); }
     @LuaFunction public final boolean getCreative() { return tile.getCreative(); }
+    @LuaFunction public final int getBurst() { return tile.getBurst(); }
 
     // --- write: mainThread=true(メインスレで直接適用) ---
     @LuaFunction(mainThread = true) public final void aim(double x, double y, double z) { tile.aimVec(new Vec3(x, y, z)); }
     @LuaFunction(mainThread = true) public final boolean fire() { return tile.requestFire(); }
     @LuaFunction(mainThread = true) public final void setProjectileSpeed(double s) { tile.setProjectileSpeed(s); }
     @LuaFunction(mainThread = true) public final void setCreative(boolean on) { tile.setCreative(on); }
+    @LuaFunction(mainThread = true) public final void setBurst(int n) { tile.setBurst(n); }
 }

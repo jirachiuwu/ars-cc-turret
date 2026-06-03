@@ -14,6 +14,7 @@ cfg.priority          = settings.get("turret.priority", config.priority)
 cfg.targetMode        = settings.get("turret.target", config.targetMode)
 cfg.creativeForce     = settings.get("turret.creative", config.creativeForce)
 cfg.speed             = settings.get("turret.speed", config.speed)
+cfg.burst             = settings.get("turret.burst", config.burst)
 cfg.range             = settings.get("turret.range", config.range)
 cfg.fireCooldownTicks = settings.get("turret.cooldown", config.fireCooldownTicks)
 cfg.aimTolDeg         = settings.get("turret.aimtol", config.aimTolDeg)
@@ -22,13 +23,14 @@ cfg.aimTolDeg         = settings.get("turret.aimtol", config.aimTolDeg)
 local P = peripheral.wrap(config.name) or peripheral.find(config.type)
 if not P then error("turret not found (name=" .. config.name .. " type=" .. config.type .. ")") end
 P.setProjectileSpeed(cfg.speed)
+P.setBurst(cfg.burst)
 if cfg.creativeForce then P.setCreative(true) end
 
 -- モニター解決(2枚=MAIN+CONFIG / 1枚=タブ / 0枚=ヘッドレス)
 local mons = monitor.resolve(cfg)
 if mons.mode == "dual" then
   monitor.setup(mons.main.obj, 0.5)     -- MAIN は情報密度優先で小さめ
-  monitor.setup(mons.config.obj, 1.0)   -- CONFIG は設定が少ないので大きく(画面を埋める)
+  monitor.setup(mons.config.obj, 0.75)  -- CONFIG は項目数とサイズのバランスで 0.75
 elseif mons.mode == "single" then
   monitor.setup(mons.single.obj, 0.5)
 end

@@ -38,13 +38,17 @@ public class CCTurret extends RotatingSpellTurret {
             @Override
             public void onCast(SpellResolver resolver, ServerLevel world, BlockPos pos, Player fakePlayer, Position ipos, Direction dir) {
                 if (!(world.getBlockEntity(pos) instanceof CCTurretTile tile)) return;
-                EntityProjectileSpell spell = new EntityProjectileSpell(world, resolver); // ← 効果/色/VFXはここで乗る
-                spell.setOwner(fakePlayer);
-                spell.setPos(ipos.x(), ipos.y(), ipos.z());
                 Vec3 v = tile.getShootAngle().normalize();          // 継承した照準ベクトル(pure luck式・触らない)
                 float velocity = (float) tile.getProjectileSpeed(); // AN標準式を捨て、フィールド値=Lua可変
-                spell.shoot(v.x(), v.y(), v.z(), velocity, 0);      // inaccuracy=0 必須(velocity厳密化)
-                world.addFreshEntity(spell);
+                int burst = tile.getBurst();
+                float spread = (burst - 1) * 0.06f;                 // 1発=spread0(厳密命中)。N発ほど扇状に拡散=弾幕
+                for (int b = 0; b < burst; b++) {
+                    EntityProjectileSpell spell = new EntityProjectileSpell(world, resolver); // ← 効果/色/VFXはここで乗る
+                    spell.setOwner(fakePlayer);
+                    spell.setPos(ipos.x(), ipos.y(), ipos.z());
+                    spell.shoot(v.x(), v.y(), v.z(), velocity, spread);
+                    world.addFreshEntity(spell);
+                }
             }
         });
         // MethodTouch は §11(初版後追い)
