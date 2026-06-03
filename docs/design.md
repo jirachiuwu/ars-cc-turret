@@ -781,3 +781,28 @@ ars-cc-turret/                      ← 土台 ars-no-iframes 複製
 - **プレイヤー速度の前tick位置差分フォールバック**(初版は対Mobスコープ。`getDeltaMovement` のみ)
 
 これらに着手したくなったら、段3が緑になっているか・初版スコープを超える正規の載せ替えタイミングかを先に確認する。
+
+---
+
+## 12. 応用層（v1命中後に実装・2026-06-03〜）
+
+> 「撃つエンジン(段0〜3)」を**実際に使える道具**に育てる層。当初 design はここを詳述してなかった（v1=1発命中で線引き）。ゆいくんの「設定も弄れない・wgetも無い・モニター表示も無い＝まだ設計通りじゃない」を受けて応用層として追加。実装済み。
+
+### 12.1 見た目（Ars 純正 geo 流用）
+- `getRenderShape` は親(`ENTITYBLOCK_ANIMATED`)のまま。`client/CCTurretModel`(GeoModel) が Ars 本体の `ars_nouveau:geo/spell_turret.geo.json` / `textures/block/spell_turret.png` / `animations/spell_turret_animations.json` を参照、`client/CCTurretRenderer`(GeoBlockRenderer) を `client/ClientSetup`(RegisterRenderers)で登録。tile は `BasicSpellTurretTile`(GeoBlockEntity+registerControllers)継承済みなので反動アニメも乗る。
+- blockstate→particleモデル(Ars方式)、item は簡易フラットアイコン(BEWLR は後回し)。
+
+### 12.2 標的優先は切替式（振り切らない）
+- `targeting.priorities` に `nearest`(最寄り) と `fastestClose`(接近速度 `closeSpeed=-(V·(P-T))/|P-T|` 降順=脅威優先)。`config.priority` の名前で選択、実行時はモニタータップ＋`settings("turret.priority")`で切替。どちらかに固定しない。
+
+### 12.3 火器管制アプリ構成
+- `main.lua`(エントリ/統括): config+settings 読込 → 周辺機器解決 → `parallel.waitForAny(control, touch)`。
+- `turret.lua`: `M.step(P,cfg,s,ballistics,targeting)` = 1tick の火器管制(純ロジック・lupaでテスト可)。状態 IDLE/TRACKING/FIRING/ESCAPING、火器管制ログ(TRK→SOL→FIRE)を蓄積。
+- `monitor.lua`: CC モニターに 状態/標的(種別・距離・接近速度)/偏差解(LEAD座標・aim誤差・飛翔tick)/設定ボタン/火器管制ログ を 20Hz 描画。タップで priority/creative 切替。
+- `config.lua`: 既定値。`settings(.turret)` が実行時上書き(永続)。
+
+### 12.4 デプロイ（wget）
+- `install.lua` が公開 raw(`raw.githubusercontent.com/jirachiuwu/ars-cc-turret/main/lua/`)から一式取得。導入: `wget run <install.lua の raw URL>` → `main` 実行。repo は public。
+
+### 12.5 機械検証
+- `lua/app_test.py`(lupa=本物のLua): 全 lua 構文チェック + `turret.step` 状態機械/ログ + `monitor.render` 無エラー。`lua/targeting_test.py`(優先則), `lua/ballistics_test.lua`(偏差)。CC-API ランタイムと見た目だけ実機/目視。

@@ -1,13 +1,15 @@
--- config.lua — 運用パラメータ。design.md §3.5。
+-- config.lua — 既定値。実行時に変えたいものは settings(.turret)で上書き(main.lua)。
 return {
-  type = "ars_cc_turret",      -- peripheral.find 用の型名。直接隣接でも modem 経由でも拾える
-  name = "ars_cc_turret_0",    -- modem ネットワーク名(あれば優先)。無ければ type で find にフォールバック
+  type = "ars_cc_turret",      -- peripheral.find 用。直接隣接でも modem 経由でも拾える
+  name = "ars_cc_turret_0",    -- modem ネットワーク名(あれば優先)。無ければ type で find
   range = 30,
-  speed = 1.5,                 -- blocks/tick。setProjectileSpeed への入力。偏差は getProjectileSpeed() の戻りを読む
-  aimTolDeg = 2.0,             -- 収束ゲート[度]。getAimError がこの値以内で発射
+  speed = 1.5,                 -- blocks/tick。setProjectileSpeed への入力。偏差は getProjectileSpeed() を読む
+  aimTolDeg = 2.0,             -- 収束ゲート[度]
   fireCooldownTicks = 5,       -- 連射間隔[tick]
   lead = { maxIter = 6, eps = 0.01, maxT = 200 },
-  -- 既定:非プレイヤー生存 + 視線あり(los)。los で壁越し射撃と「物陰に逃げた標的へのロック貼り付き」を同時に防ぐ
-  filter = function(e) return not e.isPlayer and e.isAlive and e.los end,
-  prio = require("targeting").priorities.nearest,
+  filter = function(e) return not e.isPlayer and e.isAlive and e.los end,  -- 非プレイヤー生存+視線あり
+  priority = "fastestClose",   -- "nearest" | "fastestClose"。settings で実行時切替(モニタータップ)
+  creativeForce = false,       -- 起動時に setCreative(true) するか(マナ源無しでも撃つ)
+  updateInterval = 0.05,       -- 制御+モニター更新[s]。0.05=20Hz(速い)
+  logSize = 9,                 -- 火器管制ログの保持行数
 }
