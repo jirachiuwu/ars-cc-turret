@@ -16,8 +16,9 @@ end
 
 -- 1tick分の火器管制。P=turret peripheral, cfg=設定, s=状態(破壊更新), deps=ballistics, tg=targeting。
 function M.step(P, cfg, s, deps, tg)
-  local T    = P.getMuzzle()
-  local ents = P.listEntities(cfg.range)
+  local sc   = P.scan(cfg.range)   -- 1回の mainThread 同期で muzzle+entities+speed+creative+cost+loaded+source(ループ高速化)
+  local T    = sc.muzzle
+  local ents = sc.entities
   local prio   = tg.priorities[cfg.priority] or tg.priorities.nearest
   local filter = tg.makeFilter(cfg.targetMode)
   local tgt    = tg.select(ents, T, filter, prio, s.lock)
@@ -34,23 +35,21 @@ function M.step(P, cfg, s, deps, tg)
   local Pp = { x = tgt.x, y = tgt.y + (tgt.height or 0) * 0.5, z = tgt.z }  -- 胴体中心(現在位置)
   local vy = (math.abs(tgt.vy) < 0.1) and 0 or tgt.vy                       -- 重力ノイズ無視
   local V  = { x = tgt.vx, y = vy, z = tgt.vz }
-  local sp = P.getProjectileSpeed()                                        -- クランプ後の真値
-  -- システム遅延補償: センサ→弾underway の遅れぶん標的が進む分を先に織り込む。
-  -- 遅延 = 基本(spawn等, cfg.leadLag) + 実測ループ周期(s.loopLag, mainThread同期で毎tickちょうどに回らない分)。
-  -- ループ周期を測って自動で足すので、固定値の当てずっぽうでなく実際の遅延に追従する。これが無いと速い標的ほど残像撃ち。
+  local A  = { x = tgt.ax or 0, y = tgt.ay or 0, z = tgt.az or 0 }          -- 加速度(2次最小二乗)=曲線運動の予測
+  local sp = sc.speed                                                      -- クランプ後の真値(scan から)
+  -- システム遅延補償: 基本(spawn, cfg.leadLag) + 実測ループ周期(s.loopLag, EMA平滑)。実遅延に追従。
   local lag = (cfg.leadLag or 0) + (s.loopLag or 0)
   local Pc = { x = Pp.x + V.x * lag, y = Pp.y + V.y * lag, z = Pp.z + V.z * lag }
   local esc = deps.escapes(T, Pc, V, sp)
   local aimPt, flight
-  if esc then aimPt = Pc else aimPt, flight = deps.lead(T, Pc, V, sp, cfg.lead) end
+  if esc then aimPt = Pc else aimPt, flight = deps.lead(T, Pc, V, sp, cfg.lead, A) end  -- 2次予測(曲線対応)
 
   if isNew then pushlog(s, ("TRK %s d=%.1f"):format(short(tgt.type), tgt.distance)) end
 
   local fired, err = false, 999
   if aimPt then
-    P.aim(aimPt.x, aimPt.y, aimPt.z)
-    err = P.getAimError(aimPt.x - T.x, aimPt.y - T.y, aimPt.z - T.z)
-    local ok = P.isLoaded() and (P.getCreative() or P.getSource() >= P.getSpellCost())
+    err = P.aim(aimPt.x, aimPt.y, aimPt.z)                                  -- aim + 照準誤差を1呼びで(高速化)
+    local ok = sc.loaded and (sc.creative or sc.source >= sc.cost)          -- can-fire を scan の値で合成
     if err <= cfg.aimTolDeg and s.cooldown <= 0 and ok and not esc then
       if P.fire() then
         s.cooldown, fired, s.shots = cfg.fireCooldownTicks, true, s.shots + 1

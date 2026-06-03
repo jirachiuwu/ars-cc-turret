@@ -43,17 +43,16 @@ config     = lua.execute(read("config.lua"))
 
 # --- mock peripheral(turret) ---
 fired = {"n": 0}
-def make_P(scenario):
+def make_P(scenario, aim_err=0.5):
     P = lua.table()
-    P["getMuzzle"]          = lambda: py2lua({"x": 0.0, "y": 0.0, "z": 0.0})
-    P["listEntities"]       = lambda rng=None: py2lua({i + 1: e for i, e in enumerate(scenario)})
-    P["getProjectileSpeed"] = lambda: 1.5
-    P["getAimError"]        = lambda dx, dy, dz: 0.5
-    P["getSpellCost"]       = lambda: 10
-    P["isLoaded"]           = lambda: True
-    P["getCreative"]        = lambda: True
-    P["getSource"]          = lambda: 1e9
-    P["aim"]                = lambda x, y, z: None
+    def scan(rng=None):
+        return py2lua({
+            "muzzle": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "entities": {i + 1: e for i, e in enumerate(scenario)},
+            "speed": 1.5, "creative": True, "cost": 10, "loaded": True, "source": 1e9,
+        })
+    P["scan"] = scan
+    P["aim"]  = lambda x, y, z: aim_err          # aim は照準誤差を返す
     P["setProjectileSpeed"] = lambda v: None
     P["setCreative"]        = lambda b: None
     P["setBurst"]           = lambda n: None
@@ -91,6 +90,16 @@ sL = turret.new(9); sL.loopLag = 3; turret.step(make_P([zombie]), cfg, sL, balli
 check("step: loopLag adds to lead (自動遅延)", sL.sol.leadOff > s0.sol.leadOff + 1.0)
 check("step: sol.lag = leadLag + loopLag", abs(sL.sol.lag - 3.0) < 1e-9)
 cfg.leadLag = config.leadLag
+
+# 2次リード: 加速度ありで未来位置が曲がる(曲線運動対応)
+_T = py2lua({"x": 0.0, "y": 0.0, "z": 0.0})
+_P = py2lua({"x": 10.0, "y": 0.0, "z": 0.0})
+_V = py2lua({"x": 0.0, "y": 0.0, "z": 0.5})
+_A = py2lua({"x": 0.0, "y": 0.0, "z": 0.05})        # 小さめ(intercept が存在する範囲)
+_opt = py2lua({"maxIter": 8, "eps": 0.01, "maxT": 200})
+f1 = ballistics.lead(_T, _P, _V, 1.5, _opt)[0]        # 加速度なし(戻りは future,t のタプル)
+f2 = ballistics.lead(_T, _P, _V, 1.5, _opt, _A)[0]    # 加速度あり
+check("lead: A bends future (2次予測)", f1 is not None and f2 is not None and (f2.z - f1.z) > 0.3)
 blocked = dict(zombie); blocked["los"] = False
 fired["n"] = 0
 s = turret.new(9)

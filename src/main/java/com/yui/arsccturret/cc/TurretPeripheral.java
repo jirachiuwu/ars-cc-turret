@@ -21,6 +21,8 @@ public class TurretPeripheral implements IPeripheral {
     @Override public Object getTarget() { return tile; }
 
     // --- world走査read: mainThread=true ---
+    // scan: 1回の同期で muzzle+entities+speed+creative+cost+loaded+source をまとめて返す(ループ高速化=mainThread呼び数削減)
+    @LuaFunction(mainThread = true) public final Map<String, Object> scan(Optional<Double> range) { return tile.luaScan(range.orElse(30.0)); }
     @LuaFunction(mainThread = true) public final Map<Integer, Map<String, Object>> listEntities(Optional<Double> range) { return tile.luaListEntities(range.orElse(30.0)); }
     @LuaFunction(mainThread = true) public final Map<String, Double> getMuzzle() { return tile.luaMuzzle(); }
     @LuaFunction(mainThread = true) public final Map<String, Double> getAimDir() { return tile.luaAimDir(); }
@@ -35,7 +37,7 @@ public class TurretPeripheral implements IPeripheral {
     @LuaFunction public final int getBurst() { return tile.getBurst(); }
 
     // --- write: mainThread=true(メインスレで直接適用) ---
-    @LuaFunction(mainThread = true) public final void aim(double x, double y, double z) { tile.aimVec(new Vec3(x, y, z)); }
+    @LuaFunction(mainThread = true) public final double aim(double x, double y, double z) { return tile.luaAimAndErr(x, y, z); }
     @LuaFunction(mainThread = true) public final boolean fire() { return tile.requestFire(); }
     @LuaFunction(mainThread = true) public final void setProjectileSpeed(double s) { tile.setProjectileSpeed(s); }
     @LuaFunction(mainThread = true) public final void setCreative(boolean on) { tile.setCreative(on); }

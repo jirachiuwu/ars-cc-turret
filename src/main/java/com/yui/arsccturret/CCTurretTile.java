@@ -120,6 +120,7 @@ public class CCTurretTile extends RotatingTurretTile {
             m.put("type", ForgeRegistries.ENTITY_TYPES.getKey(e.getType()).toString());
             m.put("x", e.getX());  m.put("y", e.getY());  m.put("z", e.getZ());
             m.put("vx", vel[0]);   m.put("vy", vel[1]);   m.put("vz", vel[2]);
+            m.put("ax", vel[3]);   m.put("ay", vel[4]);   m.put("az", vel[5]);   // ★加速度(2次最小二乗)=曲線運動の予測用
             m.put("height", h);                          // ★足元→胴体中心狙い用(Lua: y + height/2)
             m.put("distance", c.distanceTo(e.position()));
             m.put("isAlive", e.isAlive());
@@ -132,29 +133,77 @@ public class CCTurretTile extends RotatingTurretTile {
         return out;
     }
 
-    // 速度を複数サンプルの最小二乗(傾き)で出す。単一差分のノイズを平滑し、定常運動では厳密。
-    // getDeltaMovement に頼らない(プレイヤーでサーバ側≈0=残像撃ちの元)。
+    // 複数サンプルの履歴を更新し、2次最小二乗(放物線)フィットで {vx,vy,vz, ax,ay,az} を返す。
+    // 速度=1次, 加速度=2次。曲線運動に対応。単一差分のノイズを平滑。getDeltaMovement に頼らない(プレイヤー残像撃ち回避)。
     private double[] trackVelocity(Entity e, long now) {
         java.util.ArrayDeque<double[]> hist = velHist.computeIfAbsent(e.getUUID(), k -> new java.util.ArrayDeque<>());
         if (hist.isEmpty() || hist.peekLast()[3] < now) {          // 同tick重複は追加しない
             hist.addLast(new double[]{e.getX(), e.getY(), e.getZ(), now});
             while (hist.size() > VEL_SAMPLES) hist.removeFirst();
         }
-        return lsqVelocity(hist, e);
+        return fit(hist, e);
     }
 
-    // 最小二乗の傾き = 速度。slope_axis = Σ(t-t̄)·p_axis / Σ(t-t̄)²。サンプル不足/時刻分散0は deltaMovement へフォールバック。
-    private double[] lsqVelocity(java.util.ArrayDeque<double[]> hist, Entity e) {
+    private static final double ACCEL_CLAMP = 0.2;   // 加速度の暴れ(ノイズ)を抑える上限[b/t²]
+
+    // 放物線フィット p(t)=c0+c1·t+c2·t²(t は最新サンプルを0=現在に中心化)。velocity=c1(現在), accel=2·c2。
+    // n<3 は1次(加速度0)へ、行列特異は deltaMovement へフォールバック。
+    private double[] fit(java.util.ArrayDeque<double[]> hist, Entity e) {
         int n = hist.size();
-        if (n < 2) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z}; }
-        double tBar = 0; for (double[] s : hist) tBar += s[3]; tBar /= n;
-        double sxx = 0, sx = 0, sy = 0, sz = 0;
-        for (double[] s : hist) {
-            double dt = s[3] - tBar;
-            sxx += dt * dt; sx += dt * s[0]; sy += dt * s[1]; sz += dt * s[2];
+        double latest = hist.peekLast()[3];
+        if (n < 3) {
+            // 1次(最小二乗の傾き)
+            if (n < 2) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z, 0, 0, 0}; }
+            double tBar = 0; for (double[] s : hist) tBar += s[3]; tBar /= n;
+            double sxx = 0, sx = 0, sy = 0, sz = 0;
+            for (double[] s : hist) { double dt = s[3] - tBar; sxx += dt * dt; sx += dt * s[0]; sy += dt * s[1]; sz += dt * s[2]; }
+            if (sxx < 1e-9) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z, 0, 0, 0}; }
+            return new double[]{sx / sxx, sy / sxx, sz / sxx, 0, 0, 0};
         }
-        if (sxx < 1e-9) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z}; }
-        return new double[]{sx / sxx, sy / sxx, sz / sxx};
+        double S0 = n, S1 = 0, S2 = 0, S3 = 0, S4 = 0;
+        double[] Sp = {0, 0, 0}, Stp = {0, 0, 0}, Sttp = {0, 0, 0};
+        for (double[] s : hist) {
+            double t = s[3] - latest, t2 = t * t, t3 = t2 * t, t4 = t2 * t2;
+            S1 += t; S2 += t2; S3 += t3; S4 += t4;
+            for (int a = 0; a < 3; a++) { Sp[a] += s[a]; Stp[a] += t * s[a]; Sttp[a] += t2 * s[a]; }
+        }
+        double det = det3(S0, S1, S2, S1, S2, S3, S2, S3, S4);
+        if (Math.abs(det) < 1e-9) {
+            Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z, 0, 0, 0};
+        }
+        double[] out = new double[6];
+        for (int a = 0; a < 3; a++) {
+            double c1 = det3(S0, Sp[a], S2, S1, Stp[a], S3, S2, Sttp[a], S4) / det;   // 速度
+            double c2 = det3(S0, S1, Sp[a], S1, S2, Stp[a], S2, S3, Sttp[a]) / det;   // 0.5·加速度
+            out[a] = c1;
+            out[a + 3] = Math.max(-ACCEL_CLAMP, Math.min(ACCEL_CLAMP, 2 * c2));        // 加速度(クランプ)
+        }
+        return out;
+    }
+
+    // 3x3 行列式 [[a,b,c],[d,e,f],[g,h,i]]
+    private static double det3(double a, double b, double c, double d, double e, double f, double g, double h, double i) {
+        return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    }
+
+    // ループ高速化: 1回の mainThread 同期で必要データを全部返す(getMuzzle+listEntities+弾速+マナ等の個別呼びを集約)。
+    public Map<String, Object> luaScan(double range) {
+        Map<String, Object> r = new HashMap<>();
+        r.put("muzzle", luaMuzzle());
+        r.put("entities", luaListEntities(range));
+        r.put("speed", projectileSpeed);
+        r.put("creative", creative);
+        r.put("cost", getManaCost());
+        r.put("loaded", !getSpellCaster().getSpell().isEmpty());
+        r.put("source", luaMaxSingleSource());
+        return r;
+    }
+
+    // aim + 結果の照準誤差[度]を1呼びで返す(aim と getAimError の往復を1回に)。
+    public double luaAimAndErr(double x, double y, double z) {
+        aimVec(new Vec3(x, y, z));
+        Vec3 mz = muzzleVec();
+        return luaAimError(x - mz.x, y - mz.y, z - mz.z);
     }
 
     public Map<String, Double> luaMuzzle() {
