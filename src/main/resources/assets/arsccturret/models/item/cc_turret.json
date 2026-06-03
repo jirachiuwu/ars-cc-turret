@@ -1,3 +1,4 @@
 {
-  "parent": "arsccturret:block/cc_turret"
+  "parent": "item/generated",
+  "layer0": "ars_nouveau:block/spell_turret"
 }

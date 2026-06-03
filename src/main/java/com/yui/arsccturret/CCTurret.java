@@ -19,7 +19,6 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -82,13 +81,8 @@ public class CCTurret extends RotatingSpellTurret {
         }
     }
 
-    // 親 BasicSpellTurret は ENTITYBLOCK_ANIMATED(GeckoLib BER 前提)で静的モデルを描かない=BER無しだと透明。
-    // 初版は GeckoLib を使わず静的 blockstate モデルで可視化するため MODEL に戻す(§11 の回転追従描画は後回し)。
-    @Override
-    public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
-    }
-
+    // getRenderShape は親(ENTITYBLOCK_ANIMATED)のまま=GeckoLib の GeoBlockRenderer(client.CCTurretRenderer)が
+    // Ars 純正タレットの geo/texture/反動アニメで描画する。静的モデルには戻さない。
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new CCTurretTile(pos, state);

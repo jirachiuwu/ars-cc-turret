@@ -1,8 +1,6 @@
 {
-  "parent": "minecraft:block/cube_bottom_top",
   "textures": {
-    "top": "minecraft:block/dispenser_front_vertical",
-    "side": "minecraft:block/iron_block",
-    "bottom": "minecraft:block/iron_block"
-  }
+    "particle": "ars_nouveau:block/spell_turret"
+  },
+  "render_type": "cutout"
 }
