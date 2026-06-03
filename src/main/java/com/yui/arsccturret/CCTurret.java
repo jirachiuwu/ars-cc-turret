@@ -19,6 +19,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -79,6 +80,13 @@ public class CCTurret extends RotatingSpellTurret {
                     .onCast(resolver, world, pos, fake, ipos, orderedByNearest(tile)[0].getOpposite());
             caster.playSound(pos, world, null, caster.getCurrentSound(), SoundSource.BLOCKS);
         }
+    }
+
+    // 親 BasicSpellTurret は ENTITYBLOCK_ANIMATED(GeckoLib BER 前提)で静的モデルを描かない=BER無しだと透明。
+    // 初版は GeckoLib を使わず静的 blockstate モデルで可視化するため MODEL に戻す(§11 の回転追従描画は後回し)。
+    @Override
+    public RenderShape getRenderShape(BlockState state) {
+        return RenderShape.MODEL;
     }
 
     @Override
