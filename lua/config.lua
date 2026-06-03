@@ -14,7 +14,7 @@ return {
   priority = "fastestClose",   -- "nearest" | "fastestClose"。モニタータップで実行時切替
   creativeForce = false,       -- 起動時に setCreative(true) するか(マナ源無しでも撃つ)
   updateInterval = 0.05,       -- 制御+モニター更新[s]。0.05=20Hz(速い)
-  logSize = 9,                 -- 火器管制ログの保持行数
+  logSize = 40,                -- 火器管制ログの保持行数(縦長モニターを埋める。表示は画面行数で頭打ち)
 
   -- モニター役割(nil=接続名のソート順で自動: monitor_0=MAIN, monitor_1=CONFIG)。名前で上書き可。
   mainMonitor = nil,

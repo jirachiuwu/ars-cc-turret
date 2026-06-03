@@ -131,10 +131,10 @@ function M.renderMain(m, name, s, cfg, top)
   end
   put(m, w, oy + 8, "------- fire log -------", colors.gray)
   local startY, n = oy + 9, #s.log
-  local rows = h - startY            -- 最下行(h)はフッタ
+  local rows = h - startY            -- ログ表示可能行(最下行hはフッタ)
+  local show = math.min(n, rows)     -- 直近 show 件を ヘッダ直下から詰めて表示(下詰めのスカスカを解消)
   for i = 1, rows do
-    local li = n - rows + i
-    put(m, w, startY + i - 1, (li >= 1 and s.log[li]) or "", colors.lightGray)
+    put(m, w, startY + i - 1, (i <= show and s.log[n - show + i]) or "", colors.lightGray)
   end
   put(m, w, h, ("%s  shots %.0f"):format(name, s.shots), colors.gray)
   return {}
