@@ -9,6 +9,11 @@ return {
   leadLag = 1.0,               -- 遅延補償の基本分[tick](spawn≈1)。実測ループ周期(平滑)が自動加算。±トリムは最終手段(その場しのぎにしない)
   fireCooldownTicks = 5,       -- 連射間隔[tick]
   lead = { maxIter = 6, eps = 0.01, maxT = 200 },
+  -- §12.19 CT(Coordinated Turn)予測。ハーネス機械決定済の最終値(window=8, omegaEps=0.02)。
+  -- §12.20: omegaTMax=ω·t のクランプ角[rad]。エリトラ実機ではω推定が暴れて半周予測で「真逆」を撃つ事故が発生 → π/4(45°)で物理的に止める。
+  -- §12.20 機械判定: 実機CSV検証(距離5-30block・5点平均)で CV=10.9% > CT(有)=9.0% (-1.9pt) → **CTは実機で逆効果と判定、enabled=false**
+  -- コード資産(円弧式・ω推定・クランプ)は残置: 将来 Mob 旋回など別標的タイプで CT 有利性が出る可能性があれば再有効化可能。
+  ct = { enabled = false, window = 8, omegaEps = 0.02, omegaTMax = math.pi / 4 },
   targetMode = "hostile",      -- 狙う対象。CONFIG の TARGET タップで巡回切替。下の targetModes 順
   targetModes = { "hostile", "mobs", "all", "players" },  -- 敵対のみ/非プレイヤー生物/全部/プレイヤーのみ
   priority = "fastestClose",   -- "nearest" | "fastestClose"。モニタータップで実行時切替

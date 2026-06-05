@@ -41,6 +41,9 @@ public class CCTurretTile extends RotatingTurretTile {
     // プレイヤーの getDeltaMovement≈0 も位置差分なので回避。
     private final Map<java.util.UUID, java.util.ArrayDeque<double[]>> velHist = new HashMap<>();
     private static final int VEL_SAMPLES = 6;
+    // §12.19 CTモデル: uuid -> heading[rad] の履歴。平滑速度からの atan2(vz,vx) を毎tick追加し、unwrap差分の移動平均で水平面ωを出す。
+    private final Map<java.util.UUID, java.util.ArrayDeque<Double>> headingHist = new HashMap<>();
+    private static final int OMEGA_WINDOW = 8;     // ハーネス機械決定値(§12.19 (f))。S6収束 ≤ 12tick かつ (a)(b)(c)通過の最大平滑。
 
     public CCTurretTile(BlockPos pos, BlockState state) {
         super(CCRegistry.CC_TURRET_TILE.get(), pos, state);
@@ -112,6 +115,7 @@ public class CCTurretTile extends RotatingTurretTile {
         for (Entity e : level.getEntities(null, new AABB(getBlockPos()).inflate(range))) {
             if (!(e instanceof LivingEntity)) continue;
             double[] vel = trackVelocity(e, now);       // 位置差分速度(プレイヤーの getDeltaMovement≈0 を回避)
+            double omega = trackOmega(e.getUUID(), vel[0], vel[2]);  // §12.19 水平面ω
             seen.add(e.getUUID());
             double h = e.getBbHeight();
             Vec3 center = new Vec3(e.getX(), e.getY() + h * 0.5, e.getZ());   // 胴体中心
@@ -120,7 +124,13 @@ public class CCTurretTile extends RotatingTurretTile {
             m.put("type", ForgeRegistries.ENTITY_TYPES.getKey(e.getType()).toString());
             m.put("x", e.getX());  m.put("y", e.getY());  m.put("z", e.getZ());
             m.put("vx", vel[0]);   m.put("vy", vel[1]);   m.put("vz", vel[2]);
-            m.put("ax", vel[3]);   m.put("ay", vel[4]);   m.put("az", vel[5]);   // ★加速度(2次最小二乗)=曲線運動の予測用
+            m.put("ax", vel[3]);   m.put("ay", vel[4]);   m.put("az", vel[5]);   // 加速度(§12.18で実質撤回=常0、フィールドは後方互換で残す)
+            // §12.19 CT予測用: 標本平均位置(P_bar)と中央→現在の経過(dtCenter)。Lua側はP_barを始点に dtCenter+lag を渡して時刻整合を取る。
+            // ★重要: dtCenter は Java で計算して渡す(Luaは gameTime を持たないため自前計算不能=実機直線でも外すバグの原因になる)。
+            m.put("pBarX", vel[6]); m.put("pBarY", vel[7]); m.put("pBarZ", vel[8]);
+            m.put("tCenter", vel[9]);
+            m.put("dtCenter", (double) now - vel[9]);
+            m.put("omega", omega);                       // §12.19 水平面の角速度[rad/tick](Lua側 |ω|>omegaEps で円弧予測、それ以下でCV)
             m.put("height", h);                          // ★足元→胴体中心狙い用(Lua: y + height/2)
             m.put("distance", c.distanceTo(e.position()));
             m.put("isAlive", e.isAlive());
@@ -130,12 +140,14 @@ public class CCTurretTile extends RotatingTurretTile {
             out.put(i++, m);
         }
         velHist.keySet().retainAll(seen);                // 範囲外/消えた標的の追跡を掃除
+        headingHist.keySet().retainAll(seen);            // §12.19 同じく heading 履歴も
         return out;
     }
 
     // 速度を複数サンプルの線形最小二乗(傾き)で出す。平滑で安定、定常運動では厳密。
-    // 加速度(2次)はサンプルレートが低く(lag 数tick)ノイズが暴れて偏差が荒ぶるため不採用(ax/ay/az=0)。曲線は追従の収束で吸収。
-    // getDeltaMovement に頼らない(プレイヤーでサーバ側≈0=残像撃ちの元)。返り値 {vx,vy,vz, 0,0,0}。
+    // 加速度(2次)はサンプルレートが低く(lag 数tick)ノイズが暴れて偏差が荒ぶるため不採用(ax/ay/az=0・§12.18)。曲線は§12.19 CTモデルで吸収。
+    // getDeltaMovement に頼らない(プレイヤーでサーバ側≈0=残像撃ちの元)。
+    // 返り値 {vx, vy, vz, 0, 0, 0, xBar, yBar, zBar, tBar}: lsqの傾き=中央時刻の接線速度 + 標本平均位置(=中央時刻位置近似) + 中央時刻。
     private double[] trackVelocity(Entity e, long now) {
         java.util.ArrayDeque<double[]> hist = velHist.computeIfAbsent(e.getUUID(), k -> new java.util.ArrayDeque<>());
         if (hist.isEmpty() || hist.peekLast()[3] < now) {          // 同tick重複は追加しない
@@ -143,12 +155,36 @@ public class CCTurretTile extends RotatingTurretTile {
             while (hist.size() > VEL_SAMPLES) hist.removeFirst();
         }
         int n = hist.size();
-        if (n < 2) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z, 0, 0, 0}; }
-        double tBar = 0; for (double[] s : hist) tBar += s[3]; tBar /= n;
+        if (n < 2) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z, 0, 0, 0, e.getX(), e.getY(), e.getZ(), (double) now}; }
+        double tBar = 0, xBar = 0, yBar = 0, zBar = 0;
+        for (double[] s : hist) { tBar += s[3]; xBar += s[0]; yBar += s[1]; zBar += s[2]; }
+        tBar /= n; xBar /= n; yBar /= n; zBar /= n;
         double sxx = 0, sx = 0, sy = 0, sz = 0;
         for (double[] s : hist) { double dt = s[3] - tBar; sxx += dt * dt; sx += dt * s[0]; sy += dt * s[1]; sz += dt * s[2]; }
-        if (sxx < 1e-9) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z, 0, 0, 0}; }
-        return new double[]{sx / sxx, sy / sxx, sz / sxx, 0, 0, 0};
+        if (sxx < 1e-9) { Vec3 dm = e.getDeltaMovement(); return new double[]{dm.x, dm.y, dm.z, 0, 0, 0, xBar, yBar, zBar, tBar}; }
+        return new double[]{sx / sxx, sy / sxx, sz / sxx, 0, 0, 0, xBar, yBar, zBar, tBar};
+    }
+
+    // §12.19 平滑速度の heading=atan2(vz,vx) 差分(±πラップ補正=unwrap)を OMEGA_WINDOW 個の移動平均で水平面ω[rad/tick]を出す。
+    // 速度がほぼゼロ(|V_h|²<1e-6)の時は heading が定義できないので履歴クリア+0返し(=純CV扱い)。
+    private double trackOmega(java.util.UUID uuid, double vx, double vz) {
+        if (vx * vx + vz * vz < 1e-6) { headingHist.remove(uuid); return 0.0; }
+        double heading = Math.atan2(vz, vx);
+        java.util.ArrayDeque<Double> hh = headingHist.computeIfAbsent(uuid, k -> new java.util.ArrayDeque<>());
+        hh.addLast(heading);
+        while (hh.size() > OMEGA_WINDOW + 1) hh.removeFirst();      // 差分OMEGA_WINDOW個取れる分だけ
+        int n = hh.size();
+        if (n < 2) return 0.0;
+        Double[] arr = hh.toArray(new Double[0]);
+        double sum = 0;
+        int cnt = 0;
+        for (int k = 1; k < n; k++) {
+            double d = arr[k] - arr[k - 1];
+            if (d >  Math.PI) d -= 2 * Math.PI;                    // unwrap(±πジャンプ潰し)
+            else if (d < -Math.PI) d += 2 * Math.PI;
+            sum += d; cnt++;
+        }
+        return sum / cnt;
     }
 
     // ループ高速化: 1回の mainThread 同期で必要データを全部返す(getMuzzle+listEntities+弾速+マナ等の個別呼びを集約)。

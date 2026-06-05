@@ -40,6 +40,29 @@ local state = turret.new(config.logSize)
 local ui = { tab = "MAIN" }
 local regionsByName = {}   -- monitor名 → 領域表(タッチ突合用)
 
+-- §12.19 CSVログ: 飛行中はモニター見れないので、標的追跡データをファイルに毎tick書き出す。
+-- 起動毎に上書き(前回ログ消える=セッション分のみ保持)。発射時のみ flush でクラッシュ時の損失最小化。
+local logFile = fs.open("turret.csv", "w")
+logFile.writeLine("clock,uuid,x,y,z,vx,vy,vz,omega,pBarX,pBarY,pBarZ,dtCenter,aimX,aimY,aimZ,flight,aimErr,status,fired,shots")
+logFile.flush()
+
+local function writeLog()
+  if not state.lastTgt then return end
+  local t   = state.lastTgt
+  local sol = state.sol or {}
+  local function f1(v) return v and string.format("%.2f", v) or "" end
+  local function f3(v) return v and string.format("%.3f", v) or "" end
+  logFile.writeLine(string.format(
+    "%.2f,%s,%.2f,%.2f,%.2f,%.3f,%.3f,%.3f,%+.4f,%.2f,%.2f,%.2f,%.2f,%s,%s,%s,%s,%s,%s,%d,%d",
+    os.clock(),
+    t.uuid and t.uuid:sub(1, 8) or "?",
+    t.x, t.y, t.z, t.vx, t.vy, t.vz, t.omega,
+    t.pBarX or 0, t.pBarY or 0, t.pBarZ or 0, t.dtCenter or 0,
+    f1(sol.x), f1(sol.y), f1(sol.z), f1(sol.flight), f1(sol.err),
+    state.status, t.fired and 1 or 0, state.shots))
+  if t.fired then logFile.flush() end                 -- 発射時にディスクへ確定(クラッシュでも発射ログは残す)
+end
+
 local function control()
   local prevClock = os.clock()
   while true do
@@ -48,6 +71,7 @@ local function control()
     state.loopLag = state.loopLag * 0.8 + ((nowC - prevClock) * 20) * 0.2
     prevClock = nowC
     turret.step(P, cfg, state, ballistics, targeting)
+    writeLog()
     if mons.mode == "dual" then
       regionsByName[mons.main.name]   = monitor.renderMain(mons.main.obj, mons.main.name, state, cfg)
       regionsByName[mons.config.name] = monitor.renderConfig(mons.config.obj, mons.config.name, cfg)
