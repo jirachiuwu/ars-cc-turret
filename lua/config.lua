@@ -26,7 +26,7 @@ return {
   configMonitor = nil,
   -- CONFIG 画面の数値ボタンの刻み・範囲
   steps = {
-    speed    = { step = 0.25, min = 0.05, max = 2.5 },
+    speed    = { step = 0.25, min = 0.05, max = 10.0 },  -- §6.2 上限拡張(2.5→10.0): 偏差予測の精度要求を下げる(t_flight短縮)
     range    = { step = 5,    min = 5,    max = 64 },
     cooldown = { step = 1,    min = 1,    max = 40 },
     aimTol   = { step = 0.5,  min = 0.5,  max = 10 },
